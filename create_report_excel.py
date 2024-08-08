@@ -3,6 +3,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
 import shutil
 import os
 import random
+import copy
 
 def obtener_info_excel(ruta_excel):
     workbook = load_workbook(ruta_excel)
@@ -47,55 +48,76 @@ def obtener_info_excel(ruta_excel):
                     }
                     sheet_info[cell.coordinate] = cell_info
 
-        info_excel[sheet.title] = sheet_info
+        merge_info = []
+        for merged_cell in sheet.merged_cells.ranges:
+            merge_info.append(str(merged_cell))
+
+        info_excel[sheet.title] = {'cells': sheet_info, 'merges': merge_info}
 
     return info_excel
 
 def reemplazar_vars(sheet_info, data):
-    var_counter = 0
-    for cell_info in sheet_info.values():
-        if isinstance(cell_info['value'], str) and '<VAR' in cell_info['value']:
-            if var_counter < len(data):
-                cell_info['value'] = data[var_counter]
-                var_counter += 1
-    return sheet_info
+    # Hacer una copia profunda del sheet_info original
+    sheet_info_copia = copy.deepcopy(sheet_info)
+    for var_counter, value in enumerate(data, start=1):
+        var_placeholder = f'<VAR{var_counter:03}>'
+        for cell_info in sheet_info_copia['cells'].values():
+            if isinstance(cell_info['value'], str) and var_placeholder in cell_info['value']:
+                # Reemplazar solo la variable específica sin afectar el resto del contenido del campo
+                cell_info['value'] = cell_info['value'].replace(var_placeholder, value)
+    return sheet_info_copia
+
+
+
 
 def aplicar_info_a_hoja(sheet, sheet_info, start_row):
     max_row = start_row
-    for coord, cell_info in sheet_info.items():
+    for coord, cell_info in sheet_info['cells'].items():
         col_letter = ''.join(filter(str.isalpha, coord))
         row_number = int(''.join(filter(str.isdigit, coord)))
         new_coord = f"{col_letter}{start_row + row_number - 1}"
 
         cell = sheet[new_coord]
-        cell.value = cell_info['value']
-        cell.font = Font(
-            name=cell_info['font']['name'],
-            size=cell_info['font']['size'],
-            bold=cell_info['font']['bold'],
-            italic=cell_info['font']['italic'],
-            underline=cell_info['font']['underline'],
-            color=Color(rgb=cell_info['font']['color']) if cell_info['font']['color'] else None
-        )
-        cell.fill = PatternFill(
-            fgColor=Color(rgb=cell_info['fill']['fgColor']) if cell_info['fill']['fgColor'] else None,
-            patternType=cell_info['fill']['patternType']
-        )
-        cell.border = Border(
-            left=Side(style=cell_info['border']['left']),
-            right=Side(style=cell_info['border']['right']),
-            top=Side(style=cell_info['border']['top']),
-            bottom=Side(style=cell_info['border']['bottom'])
-        )
-        cell.alignment = Alignment(
-            horizontal=cell_info['alignment']['horizontal'],
-            vertical=cell_info['alignment']['vertical'],
-            wrap_text=cell_info['alignment']['wrap_text']
-        )
-        cell.number_format = cell_info['number_format']
-        
+        if cell_info['value'] != '??FIN??':  # Evitar escribir ??FIN??
+            cell.value = cell_info['value']
+            cell.font = Font(
+                name=cell_info['font']['name'],
+                size=cell_info['font']['size'],
+                bold=cell_info['font']['bold'],
+                italic=cell_info['font']['italic'],
+                underline=cell_info['font']['underline'],
+                color=Color(rgb=cell_info['font']['color']) if cell_info['font']['color'] else None
+            )
+            cell.fill = PatternFill(
+                fgColor=Color(rgb=cell_info['fill']['fgColor']) if cell_info['fill']['fgColor'] else None,
+                patternType=cell_info['fill']['patternType']
+            )
+            cell.border = Border(
+                left=Side(style=cell_info['border']['left']),
+                right=Side(style=cell_info['border']['right']),
+                top=Side(style=cell_info['border']['top']),
+                bottom=Side(style=cell_info['border']['bottom'])
+            )
+            cell.alignment = Alignment(
+                horizontal=cell_info['alignment']['horizontal'],
+                vertical=cell_info['alignment']['vertical'],
+                wrap_text=cell_info['alignment']['wrap_text']
+            )
+            cell.number_format = cell_info['number_format']
+
         if start_row + row_number - 1 > max_row:
             max_row = start_row + row_number - 1
+
+    for merge_range in sheet_info['merges']:
+        merge_start, merge_end = merge_range.split(':')
+        start_col_letter = ''.join(filter(str.isalpha, merge_start))
+        start_row_number = int(''.join(filter(str.isdigit, merge_start)))
+        end_col_letter = ''.join(filter(str.isalpha, merge_end))
+        end_row_number = int(''.join(filter(str.isdigit, merge_end)))
+
+        new_merge_start = f"{start_col_letter}{start_row + start_row_number - 1}"
+        new_merge_end = f"{end_col_letter}{start_row + end_row_number - 1}"
+        sheet.merge_cells(f"{new_merge_start}:{new_merge_end}")
 
     return max_row
 
@@ -140,11 +162,12 @@ def create_report_excel(datos_report, ruta_template_excel):
                 if sheet_name in info_excel:
                     sheet_info = info_excel[sheet_name]
                     # Reemplazar las variables en la hoja
-                    sheet_info = reemplazar_vars(sheet_info, values)
+                    sheet_info_modificada = reemplazar_vars(sheet_info, values)
                     # Aplicar la información modificada a la hoja "PRINCIPAL"
-                    max_row = aplicar_info_a_hoja(principal_sheet, sheet_info, start_row)
-                    start_row = max_row + 1
+                    max_row = aplicar_info_a_hoja(principal_sheet, sheet_info_modificada, start_row)
+                    start_row = max_row
 
+        
         workbook.save(rout_report_excel)
         message += "Archivo creado exitosamente: " + rout_report_excel + "\n"
     except Exception as e:

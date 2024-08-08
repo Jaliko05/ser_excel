@@ -17,7 +17,7 @@ def main():
     separator = '' 
     # name_report_txt = params[1]
     # number_session = params[2]
-    name_report_txt = '000007453'
+    name_report_txt = '000007462'
 
     rout_aplication = str(Path(__file__).parent.absolute())# ruta SIIFNET
     print("ruta SIIFNET: ", rout_aplication)
@@ -61,7 +61,7 @@ def main():
             message = message + messageCall + "\n"
 
             finish_time = time.time()
-            #message = message + "Archivo generado exitosamente: " + name_report_excel + "\n"
+            message = message + "Archivo generado exitosamente: "  + "\n"
             message = message + "Tiempo de ejecución: " + str(finish_time - start_time) + " segundos" + "\n"
         else:
             message = message + "No existe el archivo de la plantilla xlsx" + rout_template_excel +  "\n"
