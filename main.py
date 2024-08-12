@@ -7,6 +7,7 @@ from log import log
 from convert_xls_to_xlsx import convert_xls_to_xlsx
 from create_report_excel import create_report_excel
 from get_data_template_excel import get_data_template_excel
+from delete_sheets import delete_sheets
 
 def main():
     start_time = time.time()
@@ -17,7 +18,7 @@ def main():
     separator = '' 
     # name_report_txt = params[1]
     # number_session = params[2]
-    name_report_txt = '000007462'
+    name_report_txt = '000007477'
 
     rout_aplication = str(Path(__file__).parent.absolute())# ruta SIIFNET
     print("ruta SIIFNET: ", rout_aplication)
@@ -55,13 +56,16 @@ def main():
         if os.path.exists(rout_template_excel):
             print("ruta plantilla: ", rout_template_excel)
             message = message + "Ruta del archivo de plantilla: " + rout_template_excel + "\n"
+
             data_report, messageCall = get_data_report(rout_fiel_txt, separator)
             message = message + messageCall + "\n"
-            messageCall = create_report_excel(data_report, rout_template_excel)
+
+            messageCall, rout_report_excel, principal_sheet = create_report_excel(data_report, rout_template_excel)
             message = message + messageCall + "\n"
 
+            #delete_sheets(rout_report_excel, principal_sheet)
+
             finish_time = time.time()
-            message = message + "Archivo generado exitosamente: "  + "\n"
             message = message + "Tiempo de ejecución: " + str(finish_time - start_time) + " segundos" + "\n"
         else:
             message = message + "No existe el archivo de la plantilla xlsx" + rout_template_excel +  "\n"

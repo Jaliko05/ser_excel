@@ -1,5 +1,6 @@
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
+import win32com.client as win32
 import shutil
 import os
 import random
@@ -128,6 +129,35 @@ def find_next_start_row(sheet):
                 return cell.row + 1
     return 1
 
+def get_image_position():
+    excel = win32.Dispatch("Excel.Application")
+    archivo_excel = os.path.abspath("PSRH004.xlsx")
+    wb_win32 = excel.Workbooks.Open(archivo_excel)
+
+    # Diccionario para almacenar las posiciones de las imágenes
+    posiciones_imagenes = {}
+
+    # Recorrer cada hoja para obtener las posiciones de las imágenes
+    for sheet in wb_win32.Sheets:
+        posiciones_imagenes[sheet.Name] = []
+        for shape in sheet.Shapes:
+            if shape.Type == 13:  # El tipo 13 es msoPicture
+                # Obtener la posición de la imagen
+                left = shape.Left
+                top = shape.Top
+
+                # Guardar la posición y el nombre del archivo
+                posiciones_imagenes[sheet.Name].append({
+                    "name": shape.Name,
+                    "left": left,
+                    "top": top
+                })
+    
+    # Cerrar el libro original y la aplicación Excel
+    wb_win32.Close(False)
+    excel.Quit()
+    return posiciones_imagenes
+
 def create_report_excel(datos_report, ruta_template_excel):
     message = "Inicio de la copia del archivo: " + ruta_template_excel + "\n"
     try:
@@ -138,8 +168,9 @@ def create_report_excel(datos_report, ruta_template_excel):
 
         # Realizar la copia del archivo
         shutil.copy(ruta_template_excel, rout_report_excel)
+        message = message + "Copia del archivo realizada exitosamente: " + rout_report_excel + "\n"
 
-        workbook = load_workbook(rout_report_excel)
+        workbook = Workbook()
 
         # Buscar la hoja "PRINCIPAL" o variantes, o crear una si no existe
         principal_sheet = None
@@ -149,12 +180,18 @@ def create_report_excel(datos_report, ruta_template_excel):
                 break
         if not principal_sheet:
             principal_sheet = workbook.create_sheet(title="PRINCIPAL")
+        message = message + "Hoja principal: " + str(principal_sheet) + "\n"
 
         # Obtener la información de cada hoja
         info_excel = obtener_info_excel(ruta_template_excel)
+        message = message + "Obtener informacion de plantilla exitosamente: "  + "\n"
 
         # Obtener la fila de inicio
         start_row = find_next_start_row(principal_sheet)
+        message = message + "Obtener fila inicial exitosamente: "  + "\n"
+
+        #Obtener las posiciones de las imagenes
+        posiciones_imagenes = get_image_position()
 
         # Iterar sobre los datos de reporte y las hojas correspondientes
         for data in datos_report:
@@ -173,4 +210,4 @@ def create_report_excel(datos_report, ruta_template_excel):
     except Exception as e:
         message += "Error al copiar el archivo: " + ruta_template_excel + "\n"
         message += "Error: " + str(e) + "\n"
-    return message
+    return message, rout_report_excel, principal_sheet.title

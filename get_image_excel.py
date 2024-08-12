@@ -1,46 +1,54 @@
-import win32com.client
-import pythoncom
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image
+import xlwings as xw
 import os
 
-def extract_images_from_excel(file_path):
-    pythoncom.CoInitialize()
-    excel = win32com.client.Dispatch("Excel.Application")
-    workbook = excel.Workbooks.Open(file_path)
-    images = []
+# Paso 1: Abrir el libro de Excel original
+archivo_excel = "PSRH004.xlsx"
+wb = xw.Book(archivo_excel)
 
-    for sheet in workbook.Sheets:
-        for shape in sheet.Shapes:
-            if shape.Type == 13:  # msoPicture
-                # Guardar la imagen en un archivo temporal
-                temp_path = f"C:\\Temp\\{shape.Name}.jpg"
-                shape.CopyPicture()
-                sheet.PasteSpecial(Format=13)
-                chart = sheet.ChartObjects(1).Chart
-                chart.Export(temp_path)
-                
-                # Leer la imagen en memoria
-                with open(temp_path, "rb") as img_file:
-                    img_data = img_file.read()
-                    images.append({
-                        'sheet': sheet.Name,
-                        'name': shape.Name,
-                        'image': img_data
-                    })
-                
-                # Eliminar el archivo temporal
-                os.remove(temp_path)
-                sheet.ChartObjects(1).Delete()
+# Variable para almacenar las imágenes encontradas y su posición
+imagenes_encontradas = {}
 
-    workbook.Close(SaveChanges=False)
-    excel.Quit()
-    pythoncom.CoUninitialize()
-    print("imágenes extraídas", images)
-    return images
+# Paso 2: Recorrer cada hoja para encontrar imágenes
+for hoja in wb.sheets:
+    # Obtener todas las imágenes en la hoja
+    imagenes = hoja.pictures
 
-# Ejemplo de uso
-file_path = "Libro2.xlsx"
-images = extract_images_from_excel(file_path)
+    # Verificar si hay imágenes y almacenar la imagen junto con su posición
+    for imagen in imagenes:
+        if hoja.name not in imagenes_encontradas:
+            imagenes_encontradas[hoja.name] = []
 
-# Aquí puedes manipular las imágenes en memoria
-for img_info in images:
-    print(f"Hoja: {img_info['sheet']}, Nombre de la imagen: {img_info['name']}, Tamaño de la imagen: {len(img_info['image'])} bytes")
+        # Almacenar la imagen y su posición
+        imagenes_encontradas[hoja.name].append({
+            "imagen": imagen,
+            "posicion_x": imagen.left,
+            "posicion_y": imagen.top
+        })
+
+# Cerrar el libro original
+wb.close()
+
+# Paso 3: Crear un nuevo archivo de Excel para guardar las imágenes
+new_workbook = Workbook()
+new_sheet = new_workbook.active
+new_sheet.title = "Imágenes Encontradas"
+
+# Paso 4: Insertar imágenes encontradas en el nuevo archivo Excel
+for hoja, imagenes in imagenes_encontradas.items():
+    for idx, img in enumerate(imagenes):
+        # Guardar la imagen temporalmente
+        temp_image_path = f"temp_image_{hoja}_{idx}.png"
+        img['imagen'].export(temp_image_path)
+
+        # Insertar la imagen en la nueva hoja de Excel
+        img_to_insert = Image(temp_image_path)
+        cell_position = f"A{idx + 1}"  # Cambia la celda según sea necesario
+        new_sheet.add_image(img_to_insert, cell_position)
+
+        # Eliminar la imagen temporal
+        os.remove(temp_image_path)
+
+# Paso 5: Guardar el nuevo archivo de Excel
+new_workbook.save("imagenes_encontradas.xlsx")
