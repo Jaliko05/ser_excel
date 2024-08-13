@@ -1,6 +1,7 @@
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
 import win32com.client as win32
+from openpyxl.drawing.image import Image
 import shutil
 import os
 import random
@@ -17,6 +18,11 @@ def obtener_info_excel(ruta_excel):
                 if cell.value is not None:
                     font_color = cell.font.color.rgb if cell.font.color and cell.font.color.type == 'rgb' else None
                     fill_color = cell.fill.fgColor.rgb if cell.fill.fgColor and cell.fill.fgColor.type == 'rgb' else None
+
+                    # Obtener el ancho de la columna y la altura de la fila
+                    column_width = sheet.column_dimensions[cell.column_letter].width
+                    row_height = sheet.row_dimensions[cell.row].height
+
                     cell_info = {
                         'value': cell.value,
                         'font': {
@@ -45,7 +51,9 @@ def obtener_info_excel(ruta_excel):
                         'number_format': cell.number_format,
                         'row': cell.row,
                         'column': cell.column,
-                        'merge_cells': cell.coordinate in sheet.merged_cells
+                        'merge_cells': cell.coordinate in sheet.merged_cells,
+                        'column_width': column_width,
+                        'row_height': row_height
                     }
                     sheet_info[cell.coordinate] = cell_info
 
@@ -77,6 +85,15 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row):
         col_letter = ''.join(filter(str.isalpha, coord))
         row_number = int(''.join(filter(str.isdigit, coord)))
         new_coord = f"{col_letter}{start_row + row_number - 1}"
+
+        # Aplicar el ancho de la columna
+        if 'column_width' in cell_info and cell_info['column_width'] is not None:
+            sheet.column_dimensions[col_letter].width = cell_info['column_width']
+
+        # Aplicar la altura de la fila
+        if 'row_height' in cell_info and cell_info['row_height'] is not None:
+            sheet.row_dimensions[start_row + row_number - 1].height = cell_info['row_height']
+
 
         cell = sheet[new_coord]
         if cell_info['value'] != '??FIN??':  # Evitar escribir ??FIN??
@@ -129,9 +146,9 @@ def find_next_start_row(sheet):
                 return cell.row + 1
     return 1
 
-def get_image_position():
+def get_image_position(rout_template_excel):
     excel = win32.Dispatch("Excel.Application")
-    archivo_excel = os.path.abspath("PSRH004.xlsx")
+    archivo_excel = os.path.abspath(rout_template_excel)
     wb_win32 = excel.Workbooks.Open(archivo_excel)
 
     # Diccionario para almacenar las posiciones de las imágenes
@@ -166,32 +183,50 @@ def create_report_excel(datos_report, ruta_template_excel):
         name_archive = os.path.splitext(ruta_template_excel)[0]
         rout_report_excel = f"{name_archive}_{random_number}.xlsx"   
 
-        # Realizar la copia del archivo
-        shutil.copy(ruta_template_excel, rout_report_excel)
-        message = message + "Copia del archivo realizada exitosamente: " + rout_report_excel + "\n"
+        wb = load_workbook(ruta_template_excel)
 
-        workbook = Workbook()
-
-        # Buscar la hoja "PRINCIPAL" o variantes, o crear una si no existe
+        # Buscar la hoja "PRINCIPAL" o variantes, 
         principal_sheet = None
         for sheet_name in ["PRINCIPAL", "principal", "Principal"]:
-            if sheet_name in workbook.sheetnames:
-                principal_sheet = workbook[sheet_name]
+            if sheet_name in wb.sheetnames:
+                principal_sheet = wb[sheet_name]
                 break
         if not principal_sheet:
-            principal_sheet = workbook.create_sheet(title="PRINCIPAL")
+            principal_sheet = wb.create_sheet(title="PRINCIPAL")
         message = message + "Hoja principal: " + str(principal_sheet) + "\n"
-
-        # Obtener la información de cada hoja
-        info_excel = obtener_info_excel(ruta_template_excel)
-        message = message + "Obtener informacion de plantilla exitosamente: "  + "\n"
 
         # Obtener la fila de inicio
         start_row = find_next_start_row(principal_sheet)
         message = message + "Obtener fila inicial exitosamente: "  + "\n"
 
+
+        # Obtener la información de cada hoja
+        info_excel = obtener_info_excel(ruta_template_excel)
+        message = message + "Obtener informacion de plantilla exitosamente: "  + "\n"
+
+        #iniciar libro de excel
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = principal_sheet.title
+
         #Obtener las posiciones de las imagenes
-        posiciones_imagenes = get_image_position()
+        posiciones_imagenes = get_image_position(ruta_template_excel)
+
+        #aplicar informacion de la hoja principal a la nueva hoja principal
+        start_row1 = aplicar_info_a_hoja(principal_sheet, info_excel[principal_sheet.title], start_row)
+
+        #aplicar imagenes de la hoja principal a la nueva hoja principal
+        if posiciones_imagenes[principal_sheet.title]:
+            sheet_template = wb[principal_sheet.title]
+            for img_info, image in zip(posiciones_imagenes[principal_sheet.title], sheet_template._images):
+                new_image = Image(image.ref)
+
+                # Convertir las posiciones a celdas aproximadas
+                cell_row = int(img_info['top'] / 18)  # Ajustar según la altura de la fila
+                cell_col = int(img_info['left'] / 64)  # Ajustar según el ancho de la columna
+                cell_position = f"{chr(65 + cell_col)}{cell_row + start_row}" 
+                # Insertar la imagen en la nueva hoja
+                sheet.add_image(new_image, cell_position)
 
         # Iterar sobre los datos de reporte y las hojas correspondientes
         for data in datos_report:
@@ -201,13 +236,28 @@ def create_report_excel(datos_report, ruta_template_excel):
                     # Reemplazar las variables en la hoja
                     sheet_info_modificada = reemplazar_vars(sheet_info, values)
                     # Aplicar la información modificada a la hoja "PRINCIPAL"
-                    max_row = aplicar_info_a_hoja(principal_sheet, sheet_info_modificada, start_row)
-                    start_row = max_row
+                    max_row = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row)
 
-        
+                    # Aplicar las imagenes a la hoja
+                    if posiciones_imagenes[sheet_name]:
+                        sheet_template = wb[sheet_name]
+                        if sheet_name in posiciones_imagenes:
+                            for img_info, image in zip(posiciones_imagenes[sheet_name], sheet_template._images):
+                                new_image = Image(image.ref)
+
+                                # Convertir las posiciones a celdas aproximadas
+                                cell_row = int(img_info['top'] / 18)  # Ajustar según la altura de la fila
+                                cell_col = int(img_info['left'] / 64)  # Ajustar según el ancho de la columna
+                                cell_position = f"{chr(65 + cell_col)}{cell_row + start_row}"  
+                                # Insertar la imagen en la nueva hoja
+                                sheet.add_image(new_image, cell_position) 
+
+
+                    start_row = max_row
+                    
         workbook.save(rout_report_excel)
         message += "Archivo creado exitosamente: " + rout_report_excel + "\n"
     except Exception as e:
-        message += "Error al copiar el archivo: " + ruta_template_excel + "\n"
+        message += "Error al crear el reporte: " + ruta_template_excel + "\n"
         message += "Error: " + str(e) + "\n"
     return message, rout_report_excel, principal_sheet.title
