@@ -19,7 +19,7 @@ def main():
     # nomarchivo = params[0][1:]  
     # utilita = params[0][0]  
     # number_session = params[1]
-    name_report_txt = '000007477'
+    name_report_txt = '000007462'
     utilita = 'P'
 
     rout_aplication = str(Path(__file__).parent.absolute())# ruta SIIFNET

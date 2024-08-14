@@ -3,7 +3,6 @@ from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
 import win32com.client as win32
 from openpyxl.drawing.image import Image
 from openpyxl.utils import get_column_letter
-import shutil
 import os
 import random
 import copy
@@ -80,19 +79,40 @@ def obtener_info_excel(ruta_excel):
 
     return info_excel
 
+
+def es_numero(valor):
+    # Verificar si el valor es un número que se pueda convertir a float
+    try:
+        # Intentar convertir a float, reemplazando coma por punto si es necesario
+        float(valor.replace(',', '.'))
+        return True
+    except ValueError:
+        return False
+
 def reemplazar_vars(sheet_info, data):
     # Hacer una copia profunda del sheet_info original
     sheet_info_copia = copy.deepcopy(sheet_info)
+    
     for var_counter, value in enumerate(data, start=1):
         var_placeholder = f'<VAR{var_counter:03}>'
+        
+        # Verificar si el valor es un número
+        if es_numero(value):
+            # Diferenciar entre enteros y flotantes
+            if value.isdigit():
+                value = int(value)  # Convertir a entero si es un número entero
+            else:
+                try:
+                    value = float(value.replace(',', '.'))  # Convertir a float si es un número decimal
+                except ValueError:
+                    pass  # Si no se puede convertir, dejar el valor como está
+        
         for cell_info in sheet_info_copia['cells'].values():
             if isinstance(cell_info['value'], str) and var_placeholder in cell_info['value']:
                 # Reemplazar solo la variable específica sin afectar el resto del contenido del campo
-                cell_info['value'] = cell_info['value'].replace(var_placeholder, value)
+                cell_info['value'] = cell_info['value'].replace(var_placeholder, str(value))
+                
     return sheet_info_copia
-
-
-
 
 def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_name):
     max_row = start_row
