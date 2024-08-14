@@ -2,6 +2,7 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
 import win32com.client as win32
 from openpyxl.drawing.image import Image
+from openpyxl.utils import get_column_letter
 import shutil
 import os
 import random
@@ -19,8 +20,22 @@ def obtener_info_excel(ruta_excel):
                     font_color = cell.font.color.rgb if cell.font.color and cell.font.color.type == 'rgb' else None
                     fill_color = cell.fill.fgColor.rgb if cell.fill.fgColor and cell.fill.fgColor.type == 'rgb' else None
 
+                    # Obtener la configuración de la página
+                    page_setup = {
+                        'orientation': sheet.page_setup.orientation,
+                        'paper_size': sheet.page_setup.paperSize,
+                        'fit_to_width': sheet.page_setup.fitToWidth,
+                        'fit_to_height': sheet.page_setup.fitToHeight,
+                        'scale': sheet.page_setup.scale,
+                        'margin_top': sheet.page_margins.top,
+                        'margin_bottom': sheet.page_margins.bottom,
+                        'margin_left': sheet.page_margins.left,
+                        'margin_right': sheet.page_margins.right,
+                        'print_area': sheet.print_area
+                    }
+
                     # Obtener el ancho de la columna y la altura de la fila
-                    column_width = sheet.column_dimensions[cell.column_letter].width
+                    #column_width = sheet.column_dimensions[cell.column_letter].width
                     row_height = sheet.row_dimensions[cell.row].height
 
                     cell_info = {
@@ -52,7 +67,7 @@ def obtener_info_excel(ruta_excel):
                         'row': cell.row,
                         'column': cell.column,
                         'merge_cells': cell.coordinate in sheet.merged_cells,
-                        'column_width': column_width,
+                        # 'column_width': column_width,
                         'row_height': row_height
                     }
                     sheet_info[cell.coordinate] = cell_info
@@ -61,7 +76,7 @@ def obtener_info_excel(ruta_excel):
         for merged_cell in sheet.merged_cells.ranges:
             merge_info.append(str(merged_cell))
 
-        info_excel[sheet.title] = {'cells': sheet_info, 'merges': merge_info}
+        info_excel[sheet.title] = {'cells': sheet_info, 'merges': merge_info, 'page_setup': page_setup}
 
     return info_excel
 
@@ -79,16 +94,12 @@ def reemplazar_vars(sheet_info, data):
 
 
 
-def aplicar_info_a_hoja(sheet, sheet_info, start_row):
+def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_name):
     max_row = start_row
     for coord, cell_info in sheet_info['cells'].items():
         col_letter = ''.join(filter(str.isalpha, coord))
         row_number = int(''.join(filter(str.isdigit, coord)))
         new_coord = f"{col_letter}{start_row + row_number - 1}"
-
-        # Aplicar el ancho de la columna
-        if 'column_width' in cell_info and cell_info['column_width'] is not None:
-            sheet.column_dimensions[col_letter].width = cell_info['column_width']
 
         # Aplicar la altura de la fila
         if 'row_height' in cell_info and cell_info['row_height'] is not None:
@@ -175,6 +186,19 @@ def get_image_position(rout_template_excel):
     excel.Quit()
     return posiciones_imagenes
 
+def copy_column_widths(origen, destino):
+    # Obtener la última columna con datos en la hoja de origen
+    max_col = origen.max_column
+    ajuste = 0.5  # Ajustar el ancho de las columnas según el contenido
+    # Iterar sobre cada columna hasta la última columna con datos
+    for col in range(1, max_col + 1):
+        col_letter = get_column_letter(col)
+        # Obtener el ancho de la columna en la hoja de origen
+        origen_ancho = origen.column_dimensions[col_letter].width
+         # Ajustar el ancho restando un valor específico
+        if origen_ancho is not None:
+            destino.column_dimensions[col_letter].width = max(0, origen_ancho - ajuste)
+
 def create_report_excel(datos_report, ruta_template_excel):
     message = "Inicio de la copia del archivo: " + ruta_template_excel + "\n"
     try:
@@ -200,20 +224,26 @@ def create_report_excel(datos_report, ruta_template_excel):
         message = message + "Obtener fila inicial exitosamente: "  + "\n"
 
 
-        # Obtener la información de cada hoja
+        # Obtener la información de cada hoja de la plantilla
         info_excel = obtener_info_excel(ruta_template_excel)
         message = message + "Obtener informacion de plantilla exitosamente: "  + "\n"
 
+        #Obtener las posiciones de las imagenes
+        posiciones_imagenes = get_image_position(ruta_template_excel)
+        message = message + "Obtener posiciones de las imagenes exitosamente: "  + "\n"
+        
         #iniciar libro de excel
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = principal_sheet.title
+        
+        #copiar ancho de columnas de la hoja 001 al reporte
+        copy_column_widths(wb["001"], sheet)
+        message = message + "Copiar ancho de columnas de la hoja 001 al reporte exitosamente: "  + "\n"
 
-        #Obtener las posiciones de las imagenes
-        posiciones_imagenes = get_image_position(ruta_template_excel)
-
-        #aplicar informacion de la hoja principal a la nueva hoja principal
-        start_row1 = aplicar_info_a_hoja(principal_sheet, info_excel[principal_sheet.title], start_row)
+        #aplicar informacion de la hoja principal
+        a = aplicar_info_a_hoja(principal_sheet, info_excel[principal_sheet.title], 1, principal_sheet.title)   
+        message = message + "Aplicar informacion de la hoja principal exitosamente: "  + "\n"
 
         #aplicar imagenes de la hoja principal a la nueva hoja principal
         if posiciones_imagenes[principal_sheet.title]:
@@ -227,6 +257,7 @@ def create_report_excel(datos_report, ruta_template_excel):
                 cell_position = f"{chr(65 + cell_col)}{cell_row + start_row}" 
                 # Insertar la imagen en la nueva hoja
                 sheet.add_image(new_image, cell_position)
+        message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
 
         # Iterar sobre los datos de reporte y las hojas correspondientes
         for data in datos_report:
@@ -236,7 +267,7 @@ def create_report_excel(datos_report, ruta_template_excel):
                     # Reemplazar las variables en la hoja
                     sheet_info_modificada = reemplazar_vars(sheet_info, values)
                     # Aplicar la información modificada a la hoja "PRINCIPAL"
-                    max_row = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row)
+                    max_row = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row, sheet_name)
 
                     # Aplicar las imagenes a la hoja
                     if posiciones_imagenes[sheet_name]:
@@ -254,7 +285,22 @@ def create_report_excel(datos_report, ruta_template_excel):
 
 
                     start_row = max_row
-                    
+        #aplicar formato de las hojas
+        sheet_info = info_excel['001'] 
+        if 'page_setup' in sheet_info:
+            page_setup = sheet_info['page_setup']
+            sheet.page_setup.orientation = page_setup['orientation']
+            sheet.page_setup.paperSize = page_setup['paper_size']
+            sheet.page_setup.fitToWidth = page_setup['fit_to_width']
+            sheet.page_setup.fitToHeight = page_setup['fit_to_height']
+            sheet.page_setup.scale = page_setup['scale']
+            sheet.page_margins.top = page_setup['margin_top']
+            sheet.page_margins.bottom = page_setup['margin_bottom']
+            sheet.page_margins.left = page_setup['margin_left']
+            sheet.page_margins.right = page_setup['margin_right']
+            sheet.print_area = page_setup['print_area']
+            
+        message = message + "aplicar formato de las hojas exitosamente: "  + "\n"
         workbook.save(rout_report_excel)
         message += "Archivo creado exitosamente: " + rout_report_excel + "\n"
     except Exception as e:

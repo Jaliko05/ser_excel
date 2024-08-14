@@ -2,28 +2,30 @@ import time
 import sys
 import os
 from pathlib import Path
+from convert_excel_to_pdf import convert_excel_to_pdf
 from get_data_txt import get_routs, get_name_template, get_data_report
 from log import log
 from convert_xls_to_xlsx import convert_xls_to_xlsx
 from create_report_excel import create_report_excel
-from get_data_template_excel import get_data_template_excel
-from delete_sheets import delete_sheets
 
 def main():
     start_time = time.time()
+    separator = '' 
 
     #optain the parameters command line
-    params = sys.argv
+    param = sys.argv
+    # params = param.split(separator)
 
-    separator = '' 
-    # name_report_txt = params[1]
-    # number_session = params[2]
-    name_report_txt = '000004662'
+    # nomarchivo = params[0][1:]  
+    # utilita = params[0][0]  
+    # number_session = params[1]
+    name_report_txt = '000007477'
+    utilita = 'P'
 
     rout_aplication = str(Path(__file__).parent.absolute())# ruta SIIFNET
     print("ruta SIIFNET: ", rout_aplication)
 
-    # rout_environment = os.path.dirname(rout_aplication) #ruta del ambiente IDEA
+    # rout_environment = os.path.dirname(rout_aplication) #ruta del ambiente "IDEA"
     # print(rout_environment)
     rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
 
@@ -45,7 +47,7 @@ def main():
         print('ruta plantilla: ', rout_template_excel)
         if not os.path.exists(rout_template_excel):
             rout_template_excel_xls = rout_environment + "\\" + get_routs(rout_aplication,4).strip() + name_template + '.xls' 
-            message = message + " Plantilla con extension xls, se convierte a xlsx \n"
+            message = message + "Plantilla con extension xls, se convierte a xlsx \n"
             try:
                 convert_xls_to_xlsx(rout_template_excel_xls, rout_template_excel)
             except Exception as e:
@@ -58,12 +60,14 @@ def main():
             message = message + "Ruta del archivo de plantilla: " + rout_template_excel + "\n"
 
             data_report, messageCall = get_data_report(rout_fiel_txt, separator)
-            message = message + messageCall + "\n"
+            message = message + messageCall 
 
             messageCall, rout_report_excel, principal_sheet = create_report_excel(data_report, rout_template_excel)
             message = message + messageCall + "\n"
-
-            #delete_sheets(rout_report_excel, principal_sheet)
+            if utilita == 'P':
+                message = message + "Generando archivo PDF" + "\n"
+                convert_excel_to_pdf(rout_report_excel)
+                message = message + "Archivo PDF generado exitosamente" + "\n"
 
             finish_time = time.time()
             message = message + "Tiempo de ejecución: " + str(finish_time - start_time) + " segundos" + "\n"
