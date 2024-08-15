@@ -219,14 +219,9 @@ def copy_column_widths(origen, destino):
         if origen_ancho is not None:
             destino.column_dimensions[col_letter].width = max(0, origen_ancho - ajuste)
 
-def create_report_excel(datos_report, ruta_template_excel):
+def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel):
     message = "Inicio de la copia del archivo: " + ruta_template_excel + "\n"
-    try:
-        # Generar un nombre aleatorio para el nuevo archivo
-        random_number = random.randint(0, 1000000)
-        name_archive = os.path.splitext(ruta_template_excel)[0]
-        rout_report_excel = f"{name_archive}_{random_number}.xlsx"   
-
+    try: 
         wb = load_workbook(ruta_template_excel)
 
         # Buscar la hoja "PRINCIPAL" o variantes, 
@@ -321,9 +316,9 @@ def create_report_excel(datos_report, ruta_template_excel):
             sheet.print_area = page_setup['print_area']
             
         message = message + "aplicar formato de las hojas exitosamente: "  + "\n"
-        workbook.save(rout_report_excel)
-        message += "Archivo creado exitosamente: " + rout_report_excel + "\n"
+        workbook.save(ruta_report_excel)
+        message += "Archivo creado exitosamente: " + ruta_report_excel + "\n"
     except Exception as e:
         message += "Error al crear el reporte: " + ruta_template_excel + "\n"
         message += "Error: " + str(e) + "\n"
-    return message, rout_report_excel, principal_sheet.title
+    return message, ruta_report_excel, principal_sheet.title

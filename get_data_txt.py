@@ -33,3 +33,9 @@ def get_data_report(ruta_archivo,separator):
         message = message + "Error al leer el archivo de reporte: " + ruta_archivo + "\n"
         message = message + "Error: " + str(e) + "\n"
     return data_report, message
+
+def get_path(ruta_archivo):
+    with open(ruta_archivo, 'r') as archivo:
+        primera_linea = archivo.readline().strip()   
+        return primera_linea
+

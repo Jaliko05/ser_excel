@@ -1,6 +1,7 @@
 import time
 import sys
 import os
+
 from pathlib import Path
 from convert_excel_to_pdf import convert_excel_to_pdf
 from get_data_txt import get_routs, get_name_template, get_data_report
@@ -14,23 +15,41 @@ def main():
 
     #optain the parameters command line
     param = sys.argv
-    # params = param.split(separator)
+    print(param)
+    params = param[1].split(separator)
+    if params.count == 1:
+        params = param.split(" ")
+    path = os.path.abspath(__file__)  
+    print("real path: ", path)
 
-    # nomarchivo = params[0][1:]  
-    # utilita = params[0][0]  
-    # number_session = params[1]
-    name_report_txt = '000007462'
-    utilita = 'P'
+    name_report_txt = params[0][1:]  
+    utilita = params[0][0]  
+    number_session = params[1]
+    print("number_session: ", number_session)
+    print("name_report_txt: ", name_report_txt)
+    print("utilita: ", utilita)
 
-    rout_aplication = str(Path(__file__).parent.absolute())# ruta SIIFNET
+    # Obtener la ruta completa del archivo ejecutable
+    ruta_exe = sys.executable
+
+    rout_aplication =  os.path.dirname(ruta_exe)#ruta SIIFNET
     print("ruta SIIFNET: ", rout_aplication)
 
-    # rout_environment = os.path.dirname(rout_aplication) #ruta del ambiente "IDEA"
-    # print(rout_environment)
-    rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
+    partes_ruta = os.path.normpath(rout_aplication).split(os.sep)
+
+    rout_environment = '\\'.join(partes_ruta[0:-2]) #ruta del ambiente "IDEA"
+    print("ruta ambiente: ", rout_environment)
+
+    # number_session = "0000001"
+    # name_report_txt = '000007462'
+    # utilita = 'P'
+    # rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
 
     rout_log = rout_environment + "\\" + get_routs(rout_aplication,11).strip()
     print("ruta log: ", rout_log)
+
+    route_report_xlsx = rout_environment + "\\" + get_routs(rout_aplication,2).strip() + "E" + number_session + '.xlsx' #ruta del reporte txt
+    print("ruta reporte xlsx: ", route_report_xlsx)
 
     #Variables iniciales para log
     nameAplication = "ser_excel"
@@ -62,7 +81,7 @@ def main():
             data_report, messageCall = get_data_report(rout_fiel_txt, separator)
             message = message + messageCall 
 
-            messageCall, rout_report_excel, principal_sheet = create_report_excel(data_report, rout_template_excel)
+            messageCall, rout_report_excel, principal_sheet = create_report_excel(data_report, rout_template_excel, route_report_xlsx)
             message = message + messageCall + "\n"
             if utilita == 'P':
                 message = message + "Generando archivo PDF" + "\n"
