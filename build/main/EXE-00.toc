@@ -169,7 +169,7 @@
  [],
  False,
  False,
- 1723761368,
+ 1724108517,
  [('run.exe',
    'C:\\Users\\javier.puentes\\ser_excel\\ser_excel\\venv\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\run.exe',
    'EXECUTABLE')],

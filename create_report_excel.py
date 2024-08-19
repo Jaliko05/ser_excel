@@ -3,9 +3,12 @@ from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
 import win32com.client as win32
 from openpyxl.drawing.image import Image
 from openpyxl.utils import get_column_letter
+from openpyxl.utils.cell import column_index_from_string
 import os
-import random
+import gc
 import copy
+
+from log import log
 
 def obtener_info_excel(ruta_excel):
     workbook = load_workbook(ruta_excel)
@@ -177,34 +180,72 @@ def find_next_start_row(sheet):
                 return cell.row + 1
     return 1
 
-def get_image_position(rout_template_excel):
-    excel = win32.Dispatch("Excel.Application")
-    archivo_excel = os.path.abspath(rout_template_excel)
-    wb_win32 = excel.Workbooks.Open(archivo_excel)
+# def get_image_position(rout_template_excel):
+#     excel = win32.Dispatch("Excel.Application")
+#     archivo_excel = os.path.abspath(rout_template_excel)
+#     wb_win32 = excel.Workbooks.Open(archivo_excel)
 
-    # Diccionario para almacenar las posiciones de las imágenes
+#     # Diccionario para almacenar las posiciones de las imágenes
+#     posiciones_imagenes = {}
+
+#     try:
+#         # Recorrer cada hoja para obtener las posiciones de las imágenes
+#         for sheet in wb_win32.Sheets:
+#             posiciones_imagenes[sheet.Name] = []
+#             for shape in sheet.Shapes:
+#                 if shape.Type == 13:  # El tipo 13 es msoPicture
+#                     # Obtener la posición de la imagen
+#                     left = shape.Left
+#                     top = shape.Top
+
+#                     # Guardar la posición y el nombre del archivo
+#                     posiciones_imagenes[sheet.Name].append({
+#                         "name": shape.Name,
+#                         "left": left,
+#                         "top": top
+#                     })
+#     finally:
+#         # Cerrar el libro original y la aplicación Excel
+#         wb_win32.Close(False)
+#         excel.Quit()
+
+#         # Liberar las referencias a los objetos COM
+#         wb_win32 = None
+#         excel = None
+#         gc.collect()
+
+#     return posiciones_imagenes
+
+def get_image_position_openpyxl(rout_template_excel):
+    wb = load_workbook(rout_template_excel)
     posiciones_imagenes = {}
 
-    # Recorrer cada hoja para obtener las posiciones de las imágenes
-    for sheet in wb_win32.Sheets:
-        posiciones_imagenes[sheet.Name] = []
-        for shape in sheet.Shapes:
-            if shape.Type == 13:  # El tipo 13 es msoPicture
-                # Obtener la posición de la imagen
-                left = shape.Left
-                top = shape.Top
+    for sheet_name in wb.sheetnames:
+        sheet = wb[sheet_name]
+        posiciones_imagenes[sheet_name] = []
 
-                # Guardar la posición y el nombre del archivo
-                posiciones_imagenes[sheet.Name].append({
-                    "name": shape.Name,
-                    "left": left,
-                    "top": top
+        for image in sheet._images:
+            # Verificar si el anclaje tiene formato de celda
+            if hasattr(image.anchor, '_from'):
+                anchor = image.anchor._from
+                # Convertir la columna solo si es un string
+                col = column_index_from_string(anchor.col) if isinstance(anchor.col, str) else anchor.col
+                row = anchor.row
+
+                # Obtener el tamaño de la imagen
+                img_width = image.width
+                img_height = image.height
+
+                posiciones_imagenes[sheet_name].append({
+                    "name": image.ref,
+                    "col": col,
+                    "row": row,
+                    "width": img_width, 
+                    "height": img_height
                 })
-    
-    # Cerrar el libro original y la aplicación Excel
-    wb_win32.Close(False)
-    excel.Quit()
+
     return posiciones_imagenes
+
 
 def copy_column_widths(origen, destino):
     # Obtener la última columna con datos en la hoja de origen
@@ -219,7 +260,7 @@ def copy_column_widths(origen, destino):
         if origen_ancho is not None:
             destino.column_dimensions[col_letter].width = max(0, origen_ancho - ajuste)
 
-def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel):
+def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, rout_log):
     message = "Inicio de la copia del archivo: " + ruta_template_excel + "\n"
     try: 
         wb = load_workbook(ruta_template_excel)
@@ -244,7 +285,7 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel):
         message = message + "Obtener informacion de plantilla exitosamente: "  + "\n"
 
         #Obtener las posiciones de las imagenes
-        posiciones_imagenes = get_image_position(ruta_template_excel)
+        posiciones_imagenes = get_image_position_openpyxl(ruta_template_excel)
         message = message + "Obtener posiciones de las imagenes exitosamente: "  + "\n"
         
         #iniciar libro de excel
@@ -265,12 +306,12 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel):
             sheet_template = wb[principal_sheet.title]
             for img_info, image in zip(posiciones_imagenes[principal_sheet.title], sheet_template._images):
                 new_image = Image(image.ref)
+                # Establecer el tamaño de la imagen
+                new_image.width = img_info['width']
+                new_image.height = img_info['height']
+                print("tamaño: ", new_image.width, new_image.height)
 
-                # Convertir las posiciones a celdas aproximadas
-                cell_row = int(img_info['top'] / 18)  # Ajustar según la altura de la fila
-                cell_col = int(img_info['left'] / 64)  # Ajustar según el ancho de la columna
-                cell_position = f"{chr(65 + cell_col)}{cell_row + start_row}" 
-                # Insertar la imagen en la nueva hoja
+                cell_position = f"{chr(65 + img_info['col'] - 1)}{img_info['row'] + start_row}"
                 sheet.add_image(new_image, cell_position)
         message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
 
@@ -291,12 +332,12 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel):
                             for img_info, image in zip(posiciones_imagenes[sheet_name], sheet_template._images):
                                 new_image = Image(image.ref)
 
-                                # Convertir las posiciones a celdas aproximadas
-                                cell_row = int(img_info['top'] / 18)  # Ajustar según la altura de la fila
-                                cell_col = int(img_info['left'] / 64)  # Ajustar según el ancho de la columna
-                                cell_position = f"{chr(65 + cell_col)}{cell_row + start_row}"  
-                                # Insertar la imagen en la nueva hoja
-                                sheet.add_image(new_image, cell_position) 
+                                # Establecer el tamaño de la imagen
+                                new_image.width = img_info['width']
+                                new_image.height = img_info['height']
+
+                                cell_position = f"{chr(65 + img_info['col'] - 1)}{img_info['row'] + start_row}"
+                                sheet.add_image(new_image, cell_position)
 
 
                     start_row = max_row
@@ -316,9 +357,12 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel):
             sheet.print_area = page_setup['print_area']
             
         message = message + "aplicar formato de las hojas exitosamente: "  + "\n"
+        if os.path.exists(ruta_report_excel):
+            os.remove(ruta_report_excel)
         workbook.save(ruta_report_excel)
         message += "Archivo creado exitosamente: " + ruta_report_excel + "\n"
     except Exception as e:
         message += "Error al crear el reporte: " + ruta_template_excel + "\n"
         message += "Error: " + str(e) + "\n"
+        log(rout_log, "ser_excel", message)
     return message, ruta_report_excel, principal_sheet.title

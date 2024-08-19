@@ -40,10 +40,11 @@ def main():
     rout_environment = '\\'.join(partes_ruta[0:-2]) #ruta del ambiente "IDEA"
     print("ruta ambiente: ", rout_environment)
 
-    # number_session = "0000001"
+    # number_session = "0000025"
     # name_report_txt = '000007462'
     # utilita = 'P'
     # rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
+    # rout_aplication =  "C:\\Users\\javier.puentes\\ser_excel\\ser_excel"
 
     rout_log = rout_environment + "\\" + get_routs(rout_aplication,11).strip()
     print("ruta log: ", rout_log)
@@ -73,6 +74,7 @@ def main():
                 print(e)
                 message = message + "Error al convertir la plantilla xls a xlsx" + "\n"
                 message = message + "Error: " + str(e) + "\n"
+                log(rout_log, nameAplication, message)
         
         if os.path.exists(rout_template_excel):
             print("ruta plantilla: ", rout_template_excel)
@@ -81,13 +83,16 @@ def main():
             data_report, messageCall = get_data_report(rout_fiel_txt, separator)
             message = message + messageCall 
 
-            messageCall, rout_report_excel, principal_sheet = create_report_excel(data_report, rout_template_excel, route_report_xlsx)
+            messageCall, rout_report_excel, principal_sheet = create_report_excel(data_report, rout_template_excel, route_report_xlsx , rout_log)
             message = message + messageCall + "\n"
             if utilita == 'P':
-                message = message + "Generando archivo PDF" + "\n"
-                convert_excel_to_pdf(rout_report_excel)
-                message = message + "Archivo PDF generado exitosamente" + "\n"
-
+                try:
+                    message = message + "Generando archivo PDF" + "\n"
+                    convert_excel_to_pdf(rout_report_excel)
+                    message = message + "Archivo PDF generado exitosamente" + "\n"
+                except Exception as e:
+                    message = message + "Error al generar archivo PDF" + "\n"
+                    message = message + "Error: " + str(e) + "\n"
             finish_time = time.time()
             message = message + "Tiempo de ejecución: " + str(finish_time - start_time) + " segundos" + "\n"
         else:
