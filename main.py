@@ -40,8 +40,8 @@ def main():
     rout_environment = '\\'.join(partes_ruta[0:-2]) #ruta del ambiente "IDEA"
     print("ruta ambiente: ", rout_environment)
 
-    # number_session = "0000025"
-    # name_report_txt = '000007462'
+    # number_session = "0000018"
+    # name_report_txt = '000007477'
     # utilita = 'P'
     # rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
     # rout_aplication =  "C:\\Users\\javier.puentes\\ser_excel\\ser_excel"

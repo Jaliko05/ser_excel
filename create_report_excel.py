@@ -230,6 +230,8 @@ def get_image_position_openpyxl(rout_template_excel):
                 anchor = image.anchor._from
                 # Convertir la columna solo si es un string
                 col = column_index_from_string(anchor.col) if isinstance(anchor.col, str) else anchor.col
+                col += 1
+                print("col: ", col)
                 row = anchor.row
 
                 # Obtener el tamaño de la imagen
@@ -260,6 +262,59 @@ def copy_column_widths(origen, destino):
         if origen_ancho is not None:
             destino.column_dimensions[col_letter].width = max(0, origen_ancho - ajuste)
 
+def obtener_posicion_celda(img_info, start_row):
+    col_letter = get_column_letter(img_info['col'])
+    cell_position = f"{col_letter}{img_info['row'] + start_row}"
+    return cell_position
+
+def obtener_area_celda_combinada(sheet, col_letter, row):
+    for merged_cells in sheet.merged_cells.ranges:
+        # Obtener los límites del rango combinado
+        min_col, min_row, max_col, max_row = merged_cells.bounds
+        # Verificar si la celda está dentro de estos límites
+        if (min_row <= row <= max_row) and (min_col <= column_index_from_string(col_letter) <= max_col):
+            return merged_cells
+    return None
+
+def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
+    col_letter = get_column_letter(img_info['col'])
+    row = img_info['row'] + start_row
+
+    # Verificar si la celda está combinada
+    merged_range = obtener_area_celda_combinada(sheet, col_letter, row)
+
+    if merged_range:
+        # Si la celda está combinada, calcular el tamaño total de la celda combinada
+        min_col, min_row, max_col, max_row = merged_range.bounds
+        col_width = sum(sheet.column_dimensions[get_column_letter(c)].width or 8.43 for c in range(min_col, max_col + 1))
+        row_height = sum(sheet.row_dimensions[r].height or 15 for r in range(min_row, max_row + 1))
+    else:
+        # Si la celda no está combinada, obtener el tamaño normal de la celda
+        col_width = sheet.column_dimensions[col_letter].width or 8.43
+        row_height = sheet.row_dimensions[row].height or 15
+
+    # Conversiones aproximadas:
+    pixel_width = col_width * 7
+    pixel_height = row_height * 0.75
+
+    # Ajustar el tamaño de la imagen al tamaño de la celda o celdas combinadas
+    new_image.width = pixel_width
+    new_image.height = pixel_height
+
+    return new_image
+
+def aplicar_imagenes_a_hoja(sheet, posiciones_imagenes, template_sheet, start_row):
+    for img_info, image in zip(posiciones_imagenes, template_sheet._images):
+        new_image = Image(image.ref)
+
+        # Ajustar el tamaño de la imagen al tamaño de la celda o celdas combinadas
+        new_image = ajustar_imagen_a_celda(sheet, img_info, new_image, start_row)
+
+        # Obtener la posición de la celda
+        cell_position = obtener_posicion_celda(img_info, start_row)
+
+        # Insertar la imagen en la nueva hoja
+        sheet.add_image(new_image, cell_position)
 def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, rout_log):
     message = "Inicio de la copia del archivo: " + ruta_template_excel + "\n"
     try: 
@@ -311,7 +366,9 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
                 new_image.height = img_info['height']
                 print("tamaño: ", new_image.width, new_image.height)
 
-                cell_position = f"{chr(65 + img_info['col'] - 1)}{img_info['row'] + start_row}"
+                cell_position = obtener_posicion_celda(img_info, start_row)
+
+                # cell_position = f"{chr(65 + img_info['col'] - 1)}{img_info['row'] + start_row}"
                 sheet.add_image(new_image, cell_position)
         message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
 
@@ -326,18 +383,9 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
                     max_row = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row, sheet_name)
 
                     # Aplicar las imagenes a la hoja
-                    if posiciones_imagenes[sheet_name]:
+                    if sheet_name in posiciones_imagenes and posiciones_imagenes[sheet_name]:
                         sheet_template = wb[sheet_name]
-                        if sheet_name in posiciones_imagenes:
-                            for img_info, image in zip(posiciones_imagenes[sheet_name], sheet_template._images):
-                                new_image = Image(image.ref)
-
-                                # Establecer el tamaño de la imagen
-                                new_image.width = img_info['width']
-                                new_image.height = img_info['height']
-
-                                cell_position = f"{chr(65 + img_info['col'] - 1)}{img_info['row'] + start_row}"
-                                sheet.add_image(new_image, cell_position)
+                        aplicar_imagenes_a_hoja(sheet, posiciones_imagenes[sheet_name], sheet_template, start_row)
 
 
                     start_row = max_row
