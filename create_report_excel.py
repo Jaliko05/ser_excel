@@ -129,8 +129,8 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_name):
             sheet.row_dimensions[start_row + row_number - 1].height = cell_info['row_height']
 
 
-        cell = sheet[new_coord]
-        if cell_info['value'] != '??FIN??':  # Evitar escribir ??FIN??
+        if col_letter != 'A':  # Evitar escribir en la columna A
+            cell = sheet[new_coord]
             cell.value = cell_info['value']
             cell.font = Font(
                 name=cell_info['font']['name'],
@@ -177,6 +177,8 @@ def find_next_start_row(sheet):
     for row in sheet.iter_rows():
         for cell in row:
             if cell.value == '??FIN??':
+                return cell.row + 1
+            elif cell.value == "0":
                 return cell.row + 1
     return 1
 

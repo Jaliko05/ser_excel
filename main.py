@@ -13,6 +13,7 @@ def main():
     start_time = time.time()
     separator = '' 
 
+    #comentar hata la linea 42 para ejecutar en local con python main.py,
     #optain the parameters command line
     param = sys.argv
     print(param)
@@ -40,6 +41,8 @@ def main():
     rout_environment = '\\'.join(partes_ruta[0:-2]) #ruta del ambiente "IDEA"
     print("ruta ambiente: ", rout_environment)
 
+
+    # descomentar para ejecutar en local con python main.py,
     # number_session = "0000018"
     # name_report_txt = '000007477'
     # utilita = 'P'
@@ -70,6 +73,9 @@ def main():
             message = message + "Plantilla con extension xls, se convierte a xlsx \n"
             try:
                 convert_xls_to_xlsx(rout_template_excel_xls, rout_template_excel)
+                message = message + "Plantilla convertida a xlsx exitosamente" + "\n"
+                os.remove(rout_template_excel_xls)
+                message = message + "Plantilla xls eliminada exitosamente" + "\n"
             except Exception as e:
                 print(e)
                 message = message + "Error al convertir la plantilla xls a xlsx" + "\n"
