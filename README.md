@@ -1,29 +1,29 @@
 ![logo](https://web.sistemasgyg.com.co/sistemasgyg.com.co/wp-content/uploads/Grupo-366-217x150.png)
 
 # Ser_Excel 
-Ser_Excel es una aplicacion creada en python que genera un excel a partir de un reporte txt y una plantilla xlsx, 
+Ser_Excel es una aplicación desarrollada en Python que genera un archivo Excel a partir de un reporte en formato TXT y una plantilla en formato XLSX
 
 
 
 
 ## Descarga
 
-##### Clonar el repositorio 
+##### Clonar el repositorio: 
 ```sh
   git clone url-del-ser-excel
 ```
 
-##### Cambiar directorio 
+##### Cambiar directorio:
 ```sh
   cd ser-excel
 ```
 
-##### Si se va a realizar una modificacion se debe crear una rama con el numero del requerimiento o incidente
+##### Si se va a realizar una modificación, debes crear una rama con el número del requerimiento o incidente:
 ```sh
   git checkout -b R00000n
 ```
 
-##### Si la rama ya esta creada solo debes cambiar de rama 
+##### Si la rama ya está creada, solo debes cambiar a esa rama:
 ```sh
   git checkout R00000n
 ```
@@ -35,8 +35,7 @@ Ser_Excel es una aplicacion creada en python que genera un excel a partir de un 
     
 ## Estructura de Carpetas
 
-##### A continuacion se muestra la estructura de carpetas que conforma el ambiente de prueba y los fuentes del programa
-
+##### A continuación, se muestra la estructura de carpetas que conforma el ambiente de prueba y los archivos fuente del programa.
 ```bash
 ser_excel/
 │
@@ -163,12 +162,12 @@ Si el programa se ejecuta correctamente encontraras los archivos generados en la
 
 ## Generar .exe e Instalacion
 
-Para crear el archivo ejecutable .exe ejecuta el siguiente comando
+Para crear el archivo ejecutable `.exe`, ejecuta el siguiente comando:
 
 ```bash
   pyinstaller --onefile main.py
 ```
 
-en la carpeta `ser_excel\ser_excel\dist`, encontraras unarchivo creado main.exe, se debe renombrar con el siguiente nombre Ser_Excel.exe para poder ser instalado
+En la carpeta ser_excel\ser_excel\dist, encontrarás un archivo llamado `main.exe`. Debes renombrarlo a `Ser_Excel.exe` para poder instalarlo.
 
-para instalar el programa se debe pasar el archivo Ser_Excel.exe ateriormente creado a la carpeta SIIFNET del cliente, con esto ya estara instalado
+Para instalar el programa, copia el archivo `Ser_Excel.exe` a la carpeta SIIFNET del cliente. Con esto, la instalación estará completa.
