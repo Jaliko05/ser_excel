@@ -7,7 +7,9 @@ from openpyxl.utils.cell import column_index_from_string
 import os
 import gc
 import copy
+from uuid import uuid4
 
+from generate_barcode import generate_barcode
 from log import log
 
 def obtener_info_excel(ruta_excel):
@@ -92,33 +94,48 @@ def es_numero(valor):
     except ValueError:
         return False
 
-def reemplazar_vars(sheet_info, data):
+def reemplazar_vars(sheet_info, data, ruta_imagenes='img_barcode'):
     # Hacer una copia profunda del sheet_info original
     sheet_info_copia = copy.deepcopy(sheet_info)
     
+    # Crear la carpeta de imágenes si no existe
+    if not os.path.exists(ruta_imagenes):
+        os.makedirs(ruta_imagenes)
+    
     for var_counter, value in enumerate(data, start=1):
         var_placeholder = f'<VAR{var_counter:03}>'
+        barcode_placeholder = f'<CB{var_counter:03}>'
         
         # Verificar si el valor es un número
         if es_numero(value):
-            # Diferenciar entre enteros y flotantes
             if value.isdigit():
-                value = int(value)  # Convertir a entero si es un número entero
+                value = int(value)
             else:
                 try:
-                    value = float(value.replace(',', '.'))  # Convertir a float si es un número decimal
+                    value = float(value.replace(',', '.'))
                 except ValueError:
-                    pass  # Si no se puede convertir, dejar el valor como está
+                    pass
         
         for cell_info in sheet_info_copia['cells'].values():
-            if isinstance(cell_info['value'], str) and var_placeholder in cell_info['value']:
-                # Reemplazar solo la variable específica sin afectar el resto del contenido del campo
-                cell_info['value'] = cell_info['value'].replace(var_placeholder, str(value))
+            if isinstance(cell_info['value'], str):
+                # Reemplazar variables comunes
+                if var_placeholder in cell_info['value']:
+                    cell_info['value'] = cell_info['value'].replace(var_placeholder, str(value))
                 
+                # Generar y reemplazar código de barras
+                if barcode_placeholder in cell_info['value']:
+                    uuid = str(uuid4())
+                    nombre_imagen = f"{ruta_imagenes}/barcode_{uuid}"
+                    generate_barcode(str(value), nombre_imagen)
+                    cell_info['value'] = cell_info['value'].replace(barcode_placeholder, nombre_imagen + '.png')
+    
     return sheet_info_copia
 
-def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_name):
+from openpyxl.drawing.image import Image
+
+def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
     max_row = start_row
+    nameImge = []	
     for coord, cell_info in sheet_info['cells'].items():
         col_letter = ''.join(filter(str.isalpha, coord))
         row_number = int(''.join(filter(str.isdigit, coord)))
@@ -128,37 +145,58 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_name):
         if 'row_height' in cell_info and cell_info['row_height'] is not None:
             sheet.row_dimensions[start_row + row_number - 1].height = cell_info['row_height']
 
-
         if col_letter != 'A':  # Evitar escribir en la columna A
             cell = sheet[new_coord]
-            cell.value = cell_info['value']
-            cell.font = Font(
-                name=cell_info['font']['name'],
-                size=cell_info['font']['size'],
-                bold=cell_info['font']['bold'],
-                italic=cell_info['font']['italic'],
-                underline=cell_info['font']['underline'],
-                color=Color(rgb=cell_info['font']['color']) if cell_info['font']['color'] else None
-            )
-            cell.fill = PatternFill(
-                fgColor=Color(rgb=cell_info['fill']['fgColor']) if cell_info['fill']['fgColor'] else None,
-                patternType=cell_info['fill']['patternType']
-            )
-            cell.border = Border(
-                left=Side(style=cell_info['border']['left']),
-                right=Side(style=cell_info['border']['right']),
-                top=Side(style=cell_info['border']['top']),
-                bottom=Side(style=cell_info['border']['bottom'])
-            )
-            cell.alignment = Alignment(
-                horizontal=cell_info['alignment']['horizontal'],
-                vertical=cell_info['alignment']['vertical'],
-                wrap_text=cell_info['alignment']['wrap_text']
-            )
-            cell.number_format = cell_info['number_format']
+
+            # Verificar si el valor es una URL de una imagen de código de barras
+            if isinstance(cell_info['value'], str) and cell_info['value'].endswith('.png'):
+                # Crear el objeto de la imagen
+                img = Image(cell_info['value'])
+
+                # Usar la función ajustar_imagen_a_celda para ajustar el tamaño de la imagen
+                img_info = {'col': column_index_from_string(col_letter), 'row': row_number}
+                print("img_info: ", img_info)
+                print("sheet_template: ", sheet_template.title)
+                img = ajustar_imagen_a_celda(sheet_template, img_info, img, 0)
+
+                heigth = img.height * 1.8
+                img.height = heigth
+                # Insertar la imagen en la celda ajustada
+                img.anchor = new_coord  # Posicionar la imagen en la celda correspondiente
+                sheet.add_image(img)
+                nameImge.append(cell_info['value'])
+                print("width: ", img.width)
+                print("height: ", img.height)
+            else:
+                cell.value = cell_info['value']
+                cell.font = Font(
+                    name=cell_info['font']['name'],
+                    size=cell_info['font']['size'],
+                    bold=cell_info['font']['bold'],
+                    italic=cell_info['font']['italic'],
+                    underline=cell_info['font']['underline'],
+                    color=Color(rgb=cell_info['font']['color']) if cell_info['font']['color'] else None
+                )
+                cell.fill = PatternFill(
+                    fgColor=Color(rgb=cell_info['fill']['fgColor']) if cell_info['fill']['fgColor'] else "FFFFFF", patternType=cell_info['fill']['patternType']
+                )
+
+                cell.border = Border(
+                    left=Side(style=cell_info['border']['left']),
+                    right=Side(style=cell_info['border']['right']),
+                    top=Side(style=cell_info['border']['top']),
+                    bottom=Side(style=cell_info['border']['bottom'])
+                )
+                cell.alignment = Alignment(
+                    horizontal=cell_info['alignment']['horizontal'],
+                    vertical=cell_info['alignment']['vertical'],
+                    wrap_text=cell_info['alignment']['wrap_text']
+                )
+                cell.number_format = cell_info['number_format']
 
         if start_row + row_number - 1 > max_row:
             max_row = start_row + row_number - 1
+        
 
     for merge_range in sheet_info['merges']:
         merge_start, merge_end = merge_range.split(':')
@@ -171,7 +209,7 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_name):
         new_merge_end = f"{end_col_letter}{start_row + end_row_number - 1}"
         sheet.merge_cells(f"{new_merge_start}:{new_merge_end}")
 
-    return max_row
+    return max_row, nameImge
 
 def find_next_start_row(sheet):
     for row in sheet.iter_rows():
@@ -182,41 +220,6 @@ def find_next_start_row(sheet):
                 return cell.row + 1
     return 1
 
-# def get_image_position(rout_template_excel):
-#     excel = win32.Dispatch("Excel.Application")
-#     archivo_excel = os.path.abspath(rout_template_excel)
-#     wb_win32 = excel.Workbooks.Open(archivo_excel)
-
-#     # Diccionario para almacenar las posiciones de las imágenes
-#     posiciones_imagenes = {}
-
-#     try:
-#         # Recorrer cada hoja para obtener las posiciones de las imágenes
-#         for sheet in wb_win32.Sheets:
-#             posiciones_imagenes[sheet.Name] = []
-#             for shape in sheet.Shapes:
-#                 if shape.Type == 13:  # El tipo 13 es msoPicture
-#                     # Obtener la posición de la imagen
-#                     left = shape.Left
-#                     top = shape.Top
-
-#                     # Guardar la posición y el nombre del archivo
-#                     posiciones_imagenes[sheet.Name].append({
-#                         "name": shape.Name,
-#                         "left": left,
-#                         "top": top
-#                     })
-#     finally:
-#         # Cerrar el libro original y la aplicación Excel
-#         wb_win32.Close(False)
-#         excel.Quit()
-
-#         # Liberar las referencias a los objetos COM
-#         wb_win32 = None
-#         excel = None
-#         gc.collect()
-
-#     return posiciones_imagenes
 
 def get_image_position_openpyxl(rout_template_excel):
     wb = load_workbook(rout_template_excel)
@@ -374,6 +377,8 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
                 sheet.add_image(new_image, cell_position)
         message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
 
+        bar_code = []
+
         # Iterar sobre los datos de reporte y las hojas correspondientes
         for data in datos_report:
             for sheet_name, values in data.items():
@@ -382,8 +387,9 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
                     # Reemplazar las variables en la hoja
                     sheet_info_modificada = reemplazar_vars(sheet_info, values)
                     # Aplicar la información modificada a la hoja "PRINCIPAL"
-                    max_row = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row, sheet_name)
-
+                    sheet_template = wb[sheet_name]
+                    max_row, nameImge = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row, sheet_template)
+                    bar_code = bar_code + nameImge
                     # Aplicar las imagenes a la hoja
                     if sheet_name in posiciones_imagenes and posiciones_imagenes[sheet_name]:
                         sheet_template = wb[sheet_name]
@@ -410,6 +416,12 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         if os.path.exists(ruta_report_excel):
             os.remove(ruta_report_excel)
         workbook.save(ruta_report_excel)
+
+        # eliminar images de código de barras
+        for nameImge in bar_code:
+            print("nameImge: ", nameImge)
+            os.remove(nameImge)
+
         message += "Archivo creado exitosamente: " + ruta_report_excel + "\n"
     except Exception as e:
         message += "Error al crear el reporte: " + ruta_template_excel + "\n"
