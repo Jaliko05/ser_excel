@@ -78,7 +78,9 @@ def obtener_info_excel(ruta_excel):
 
         merge_info = []
         for merged_cell in sheet.merged_cells.ranges:
-            merge_info.append(str(merged_cell))
+            merge_info.append(merged_cell)
+        
+        print("merge_info: ", merge_info)
 
         info_excel[sheet.title] = {'cells': sheet_info, 'merges': merge_info, 'page_setup': page_setup}
 
@@ -199,14 +201,23 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
         
 
     for merge_range in sheet_info['merges']:
-        merge_start, merge_end = merge_range.split(':')
-        start_col_letter = ''.join(filter(str.isalpha, merge_start))
-        start_row_number = int(''.join(filter(str.isdigit, merge_start)))
-        end_col_letter = ''.join(filter(str.isalpha, merge_end))
-        end_row_number = int(''.join(filter(str.isdigit, merge_end)))
+        min_col, min_row, max_col, max_row_fin = merge_range.bounds
+        print("min_col: ", min_col)
+        print("min_row: ", min_row)
+        print("max_col: ", max_col)
+        print("max_row_fin: ", max_row_fin)
 
-        new_merge_start = f"{start_col_letter}{start_row + start_row_number - 1}"
-        new_merge_end = f"{end_col_letter}{start_row + end_row_number - 1}"
+
+        # merge_start, merge_end = merge_range.split(':')
+        # start_col_letter = ''.join(filter(str.isalpha, merge_start)) #A
+        # start_row_number = int(''.join(filter(str.isdigit, merge_start)))#1
+        # end_col_letter = ''.join(filter(str.isalpha, merge_end))#A
+        # end_row_number = int(''.join(filter(str.isdigit, merge_end)))#20
+
+        new_merge_start = f"{get_column_letter(min_col)}{start_row + min_row - 1}"
+        new_merge_end = f"{get_column_letter(max_col)}{start_row + max_row_fin - 1}"
+        print("new_merge_start: ", new_merge_start)
+        print("new_merge_end: ", new_merge_end)
         sheet.merge_cells(f"{new_merge_start}:{new_merge_end}")
 
     return max_row, nameImge
@@ -415,6 +426,7 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         message = message + "aplicar formato de las hojas exitosamente: "  + "\n"
         if os.path.exists(ruta_report_excel):
             os.remove(ruta_report_excel)
+
         workbook.save(ruta_report_excel)
 
         # eliminar images de código de barras
