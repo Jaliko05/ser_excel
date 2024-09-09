@@ -269,8 +269,8 @@ def copy_column_widths(origen, destino):
         origen_ancho = origen.column_dimensions[col_letter].width
         # Mostrar el ancho obtenido
         print("origen_ancho: ", origen_ancho, "col_letter: ", col_letter)
-        if origen_ancho - 0.1 > 0:
-            origen_ancho = origen_ancho - 0.1
+        if origen_ancho - 0.5 > 0:
+            origen_ancho = origen_ancho - 0.5
         # Aplicar el ancho a la columna en la hoja de destino
         destino.column_dimensions[col_letter].width = origen_ancho
 
@@ -291,8 +291,10 @@ def obtener_area_celda_combinada(sheet, col_letter, row):
 
 def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
     col_letter = get_column_letter(img_info['col'])
-    row = img_info['row'] + start_row
-
+    row = img_info['row'] + 1
+    print("sheet name: ", sheet.title)
+    print("row: ", row)
+    print("col_letter: ", col_letter)
     # Verificar si la celda está combinada
     merged_range = obtener_area_celda_combinada(sheet, col_letter, row)
 
@@ -306,6 +308,8 @@ def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
         col_width = sheet.column_dimensions[col_letter].width or 8.43
         row_height = sheet.row_dimensions[row].height or 15
 
+    print("col_width: ", col_width)
+    print("row_height: ", row_height)
     # Conversiones aproximadas:
     pixel_width = col_width * 7
     pixel_height = row_height * 0.75
@@ -321,7 +325,7 @@ def aplicar_imagenes_a_hoja(sheet, posiciones_imagenes, template_sheet, start_ro
         new_image = Image(image.ref)
 
         # Ajustar el tamaño de la imagen al tamaño de la celda o celdas combinadas
-        new_image = ajustar_imagen_a_celda(sheet, img_info, new_image, start_row)
+        new_image = ajustar_imagen_a_celda(template_sheet, img_info, new_image, start_row)
 
         # Obtener la posición de la celda
         cell_position = obtener_posicion_celda(img_info, start_row)
@@ -363,7 +367,7 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         sheet.title = principal_sheet.title
         
         #copiar ancho de columnas de la hoja 001 al reporte
-        copy_column_widths(wb[principal_sheet.title], sheet)
+        copy_column_widths(wb['001'], sheet)
         message = message + "Copiar ancho de columnas de la hoja 001 al reporte exitosamente: "  + "\n"
 
         #aplicar informacion de la hoja principal
@@ -373,17 +377,8 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         #aplicar imagenes de la hoja principal a la nueva hoja principal
         if posiciones_imagenes[principal_sheet.title]:
             sheet_template = wb[principal_sheet.title]
-            for img_info, image in zip(posiciones_imagenes[principal_sheet.title], sheet_template._images):
-                new_image = Image(image.ref)
-                # Establecer el tamaño de la imagen
-                new_image.width = img_info['width']
-                new_image.height = img_info['height']
-                print("tamaño: ", new_image.width, new_image.height)
-
-                cell_position = obtener_posicion_celda(img_info, start_row)
-
-                # cell_position = f"{chr(65 + img_info['col'] - 1)}{img_info['row'] + start_row}"
-                sheet.add_image(new_image, cell_position)
+            print("posiciones_imagenes: ", posiciones_imagenes[sheet_name])
+            aplicar_imagenes_a_hoja(sheet, posiciones_imagenes[sheet_name], sheet_template, start_row)
         message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
 
         bar_code = []
@@ -407,9 +402,10 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
 
                     start_row = max_row
         #aplicar formato de las hojas
-        sheet_info = info_excel['005'] 
+        sheet_info = info_excel['001'] 
         if 'page_setup' in sheet_info:
             page_setup = sheet_info['page_setup']
+            print("page_setup: ", page_setup)
             sheet.page_setup.orientation = page_setup['orientation']
             sheet.page_setup.paperSize = page_setup['paper_size']
             sheet.page_setup.fitToWidth = page_setup['fit_to_width']
@@ -420,6 +416,12 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
             sheet.page_margins.left = page_setup['margin_left']
             sheet.page_margins.right = page_setup['margin_right']
             sheet.print_area = page_setup['print_area']
+            if sheet.page_setup.fitToWidth is None:
+                sheet.page_setup.fitToWidth = 1  # Forzar ajuste a una página de ancho
+            if sheet.page_setup.fitToHeight is None:
+                sheet.page_setup.fitToHeight = 1  # Forzar ajuste a una página de alto
+            if sheet.page_setup.paperSize is None:
+                sheet.page_setup.paperSize = sheet.PAPERSIZE_A4 
             
         message = message + "aplicar formato de las hojas exitosamente: "  + "\n"
         if os.path.exists(ruta_report_excel):
