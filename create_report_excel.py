@@ -18,6 +18,11 @@ def obtener_info_excel(ruta_excel):
 
     for sheet in workbook.worksheets:
         sheet_info = {}
+        
+        # Obtener el ancho de las columnas y la altura de las filas
+        column_widths = {col: sheet.column_dimensions[col].width for col in sheet.column_dimensions}
+        row_heights = {row: sheet.row_dimensions[row].height for row in sheet.row_dimensions}
+
         for row in sheet.iter_rows():
             for cell in row:
                 if cell.value is not None:
@@ -38,9 +43,11 @@ def obtener_info_excel(ruta_excel):
                         'print_area': sheet.print_area
                     }
 
-                    # Obtener el ancho de la columna y la altura de la fila
-                    #column_width = sheet.column_dimensions[cell.column_letter].width
-                    row_height = sheet.row_dimensions[cell.row].height
+                    # Obtener el ancho de la columna y la altura de la fila desde `column_dimensions` y `row_dimensions`
+                    col_letter = cell.column_letter
+                    row_number = cell.row
+                    column_width = column_widths.get(col_letter, None)
+                    row_height = row_heights.get(row_number, None)
 
                     cell_info = {
                         'value': cell.value,
@@ -68,10 +75,10 @@ def obtener_info_excel(ruta_excel):
                             'wrap_text': cell.alignment.wrap_text
                         },
                         'number_format': cell.number_format,
-                        'row': cell.row,
-                        'column': cell.column,
+                        'row': row_number,
+                        'column': col_letter,
                         'merge_cells': cell.coordinate in sheet.merged_cells,
-                        # 'column_width': column_width,
+                        'column_width': column_width,
                         'row_height': row_height
                     }
                     sheet_info[cell.coordinate] = cell_info
@@ -79,8 +86,6 @@ def obtener_info_excel(ruta_excel):
         merge_info = []
         for merged_cell in sheet.merged_cells.ranges:
             merge_info.append(merged_cell)
-        
-        print("merge_info: ", merge_info)
 
         info_excel[sheet.title] = {'cells': sheet_info, 'merges': merge_info, 'page_setup': page_setup}
 
@@ -202,22 +207,9 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
 
     for merge_range in sheet_info['merges']:
         min_col, min_row, max_col, max_row_fin = merge_range.bounds
-        print("min_col: ", min_col)
-        print("min_row: ", min_row)
-        print("max_col: ", max_col)
-        print("max_row_fin: ", max_row_fin)
-
-
-        # merge_start, merge_end = merge_range.split(':')
-        # start_col_letter = ''.join(filter(str.isalpha, merge_start)) #A
-        # start_row_number = int(''.join(filter(str.isdigit, merge_start)))#1
-        # end_col_letter = ''.join(filter(str.isalpha, merge_end))#A
-        # end_row_number = int(''.join(filter(str.isdigit, merge_end)))#20
 
         new_merge_start = f"{get_column_letter(min_col)}{start_row + min_row - 1}"
         new_merge_end = f"{get_column_letter(max_col)}{start_row + max_row_fin - 1}"
-        print("new_merge_start: ", new_merge_start)
-        print("new_merge_end: ", new_merge_end)
         sheet.merge_cells(f"{new_merge_start}:{new_merge_end}")
 
     return max_row, nameImge
@@ -265,18 +257,23 @@ def get_image_position_openpyxl(rout_template_excel):
     return posiciones_imagenes
 
 
+from openpyxl.utils import get_column_letter
+
 def copy_column_widths(origen, destino):
-    # Obtener la última columna con datos en la hoja de origen
-    max_col = origen.max_column
-    ajuste = 0.5  # Ajustar el ancho de las columnas según el contenido
-    # Iterar sobre cada columna hasta la última columna con datos
-    for col in range(1, max_col + 1):
+    # Obtener la última columna con un ancho modificado
+    last_col_index = max([column_index_from_string(col) for col in origen.column_dimensions if origen.column_dimensions[col].width is not None])
+
+    # Iterar secuencialmente desde la primera columna hasta la última columna modificada
+    for col in range(1, last_col_index + 1):
         col_letter = get_column_letter(col)
-        # Obtener el ancho de la columna en la hoja de origen
         origen_ancho = origen.column_dimensions[col_letter].width
-         # Ajustar el ancho restando un valor específico
-        if origen_ancho is not None:
-            destino.column_dimensions[col_letter].width = max(0, origen_ancho - ajuste)
+        # Mostrar el ancho obtenido
+        print("origen_ancho: ", origen_ancho, "col_letter: ", col_letter)
+        if origen_ancho - 0.1 > 0:
+            origen_ancho = origen_ancho - 0.1
+        # Aplicar el ancho a la columna en la hoja de destino
+        destino.column_dimensions[col_letter].width = origen_ancho
+
 
 def obtener_posicion_celda(img_info, start_row):
     col_letter = get_column_letter(img_info['col'])
@@ -331,6 +328,7 @@ def aplicar_imagenes_a_hoja(sheet, posiciones_imagenes, template_sheet, start_ro
 
         # Insertar la imagen en la nueva hoja
         sheet.add_image(new_image, cell_position)
+
 def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, rout_log):
     message = "Inicio de la copia del archivo: " + ruta_template_excel + "\n"
     try: 
@@ -365,7 +363,7 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         sheet.title = principal_sheet.title
         
         #copiar ancho de columnas de la hoja 001 al reporte
-        copy_column_widths(wb["001"], sheet)
+        copy_column_widths(wb[principal_sheet.title], sheet)
         message = message + "Copiar ancho de columnas de la hoja 001 al reporte exitosamente: "  + "\n"
 
         #aplicar informacion de la hoja principal
@@ -409,7 +407,7 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
 
                     start_row = max_row
         #aplicar formato de las hojas
-        sheet_info = info_excel['001'] 
+        sheet_info = info_excel['005'] 
         if 'page_setup' in sheet_info:
             page_setup = sheet_info['page_setup']
             sheet.page_setup.orientation = page_setup['orientation']
