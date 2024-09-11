@@ -94,7 +94,7 @@ def main():
             if utilita == 'P':
                 try:
                     message = message + "Generando archivo PDF" + "\n"
-                    convert_excel_to_pdf(rout_report_excel)
+                    message = message + convert_excel_to_pdf(rout_report_excel)
                     message = message + "Archivo PDF generado exitosamente" + "\n"
                 except Exception as e:
                     message = message + "Error al generar archivo PDF" + "\n"

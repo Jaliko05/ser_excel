@@ -30,7 +30,6 @@ def obtener_info_excel(ruta_excel):
             # Verificar si hay un valor en la columna A de esta fila
             if row[0].value is not None:
                 fila_limite = row[0].row  # Guardar la fila donde se encuentra el valor en la columna A
-                print("fila_limite: ", fila_limite)
 
             # Si hemos encontrado un valor en la columna A, procesar hasta esa fila
             if fila_limite is not None and row[0].row > fila_limite:
@@ -132,39 +131,42 @@ def es_numero(valor):
 def reemplazar_vars(sheet_info, data, ruta_imagenes='img_barcode'):
     # Hacer una copia profunda del sheet_info original
     sheet_info_copia = copy.deepcopy(sheet_info)
-    
+
     # Crear la carpeta de imágenes si no existe
     if not os.path.exists(ruta_imagenes):
         os.makedirs(ruta_imagenes)
-    
+
     for var_counter, value in enumerate(data, start=1):
         var_placeholder = f'<VAR{var_counter:03}>'
         barcode_placeholder = f'<CB{var_counter:03}>'
-        
-        # Verificar si el valor es un número
-        if es_numero(value):
-            if value.isdigit():
-                value = int(value)
-            else:
-                try:
-                    value = float(value.replace(',', '.'))
-                except ValueError:
-                    pass
-        
+
+        # Reemplazar valores en las celdas
         for cell_info in sheet_info_copia['cells'].values():
             if isinstance(cell_info['value'], str):
-                # Reemplazar variables comunes
+                # Verificar si el formato de la celda es numérico
+                cell_format = cell_info.get('number_format', '')
+
+                # Si el formato no es numérico, evitar la conversión a número
                 if var_placeholder in cell_info['value']:
+                    if es_numero(value) and not cell_format.startswith('@'):  # Si no es texto
+                        if value.isdigit():
+                            value = int(value)
+                        else:
+                            try:
+                                value = float(value.replace(',', '.'))
+                            except ValueError:
+                                pass
                     cell_info['value'] = cell_info['value'].replace(var_placeholder, str(value))
-                
+
                 # Generar y reemplazar código de barras
                 if barcode_placeholder in cell_info['value']:
                     uuid = str(uuid4())
                     nombre_imagen = f"{ruta_imagenes}/barcode_{uuid}"
                     generate_barcode(str(value), nombre_imagen)
                     cell_info['value'] = cell_info['value'].replace(barcode_placeholder, nombre_imagen + '.png')
-    
+
     return sheet_info_copia
+
 
 from openpyxl.drawing.image import Image
 
@@ -190,8 +192,6 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
 
                 # Usar la función ajustar_imagen_a_celda para ajustar el tamaño de la imagen
                 img_info = {'col': column_index_from_string(col_letter), 'row': row_number}
-                print("img_info: ", img_info)
-                print("sheet_template: ", sheet_template.title)
                 img = ajustar_imagen_a_celda(sheet_template, img_info, img, 0)
 
                 heigth = img.height * 1.8
@@ -200,8 +200,6 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
                 img.anchor = new_coord  # Posicionar la imagen en la celda correspondiente
                 sheet.add_image(img)
                 nameImge.append(cell_info['value'])
-                print("width: ", img.width)
-                print("height: ", img.height)
             else:
                 cell.value = cell_info['value']
                 cell.font = Font(
@@ -267,7 +265,6 @@ def get_image_position_openpyxl(rout_template_excel):
                 # Convertir la columna solo si es un string
                 col = column_index_from_string(anchor.col) if isinstance(anchor.col, str) else anchor.col
                 col += 1
-                print("col: ", col)
                 row = anchor.row
 
                 # Obtener el tamaño de la imagen
@@ -296,9 +293,8 @@ def copy_column_widths(origen, destino):
         col_letter = get_column_letter(col)
         origen_ancho = origen.column_dimensions[col_letter].width
         # Mostrar el ancho obtenido
-        print("origen_ancho: ", origen_ancho, "col_letter: ", col_letter)
         if origen_ancho - 0.5 > 0:
-            origen_ancho = origen_ancho - 0.5
+            origen_ancho = origen_ancho - 0
         # Aplicar el ancho a la columna en la hoja de destino
         destino.column_dimensions[col_letter].width = origen_ancho
 
@@ -320,9 +316,6 @@ def obtener_area_celda_combinada(sheet, col_letter, row):
 def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
     col_letter = get_column_letter(img_info['col'])
     row = img_info['row'] + 1
-    print("sheet name: ", sheet.title)
-    print("row: ", row)
-    print("col_letter: ", col_letter)
     # Verificar si la celda está combinada
     merged_range = obtener_area_celda_combinada(sheet, col_letter, row)
 
@@ -336,8 +329,6 @@ def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
         col_width = sheet.column_dimensions[col_letter].width or 8.43
         row_height = sheet.row_dimensions[row].height or 15
 
-    print("col_width: ", col_width)
-    print("row_height: ", row_height)
     # Conversiones aproximadas:
     pixel_width = col_width * 7
     pixel_height = row_height * 0.75
@@ -405,7 +396,6 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         #aplicar imagenes de la hoja principal a la nueva hoja principal
         if posiciones_imagenes[principal_sheet.title]:
             sheet_template = wb[principal_sheet.title]
-            print("posiciones_imagenes: ", posiciones_imagenes[sheet_name])
             aplicar_imagenes_a_hoja(sheet, posiciones_imagenes[sheet_name], sheet_template, start_row)
         message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
         print("aplicar imagenes de la hoja principal exitosamente")
@@ -460,7 +450,6 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
 
         # eliminar images de código de barras
         for nameImge in bar_code:
-            print("nameImge: ", nameImge)
             os.remove(nameImge)
 
         message += "Archivo creado exitosamente: " + ruta_report_excel + "\n"
