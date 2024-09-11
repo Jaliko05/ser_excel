@@ -15,39 +15,39 @@ def main():
 
     #comentar hata la linea 42 para ejecutar en local con python main.py,
     #optain the parameters command line
-    param = sys.argv
-    print(param)
-    params = param[1].split(separator)
-    if params.count == 1:
-       params = param.split(" ")
-    path = os.path.abspath(__file__)  
-    print("real path: ", path)
+    # param = sys.argv
+    # print(param)
+    # params = param[1].split(separator)
+    # if params.count == 1:
+    #    params = param.split(" ")
+    # path = os.path.abspath(__file__)  
+    # print("real path: ", path)
 
-    name_report_txt = params[0][1:]  
-    utilita = params[0][0]  
-    number_session = params[1]
-    print("number_session: ", number_session)
-    print("name_report_txt: ", name_report_txt)
-    print("utilita: ", utilita)
+    # name_report_txt = params[0][1:]  
+    # utilita = params[0][0]  
+    # number_session = params[1]
+    # print("number_session: ", number_session)
+    # print("name_report_txt: ", name_report_txt)
+    # print("utilita: ", utilita)
 
-    #Obtener la ruta completa del archivo ejecutable
-    ruta_exe = sys.executable
+    # #Obtener la ruta completa del archivo ejecutable
+    # ruta_exe = sys.executable
 
-    rout_aplication =  os.path.dirname(ruta_exe)#ruta SIIFNET
-    print("ruta SIIFNET: ", rout_aplication)
+    # rout_aplication =  os.path.dirname(ruta_exe)#ruta SIIFNET
+    # print("ruta SIIFNET: ", rout_aplication)
 
-    partes_ruta = os.path.normpath(rout_aplication).split(os.sep)
+    # partes_ruta = os.path.normpath(rout_aplication).split(os.sep)
 
-    rout_environment = '\\'.join(partes_ruta[0:-2]) #ruta del ambiente "IDEA"
-    print("ruta ambiente: ", rout_environment)
+    # rout_environment = '\\'.join(partes_ruta[0:-2]) #ruta del ambiente "IDEA"
+    # print("ruta ambiente: ", rout_environment)
 
 
     #descomentar hata la linea 50 para ejecutar en local con python main.py,
-    # number_session = "0000037"
-    # name_report_txt = '000006083'
-    # utilita = 'P'
-    # rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
-    # rout_aplication =  "C:\\Users\\javier.puentes\\ser_excel\\ser_excel"
+    number_session = "0000100"
+    name_report_txt = '000002557'
+    utilita = 'P'
+    rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
+    rout_aplication =  "C:\\Users\\javier.puentes\\ser_excel\\ser_excel"
 
     rout_log = rout_environment + "\\" + get_routs(rout_aplication,11).strip()
     print("ruta log: ", rout_log)

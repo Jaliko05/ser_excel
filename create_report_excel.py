@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from generate_barcode import generate_barcode
 from log import log
+from openpyxl.cell.cell import MergedCell
 
 def obtener_info_excel(ruta_excel):
     workbook = load_workbook(ruta_excel)
@@ -18,17 +19,50 @@ def obtener_info_excel(ruta_excel):
 
     for sheet in workbook.worksheets:
         sheet_info = {}
-        
         # Obtener el ancho de las columnas y la altura de las filas
         column_widths = {col: sheet.column_dimensions[col].width for col in sheet.column_dimensions}
         row_heights = {row: sheet.row_dimensions[row].height for row in sheet.row_dimensions}
 
-        for row in sheet.iter_rows():
-            for cell in row:
-                if cell.value is not None:
-                    font_color = cell.font.color.rgb if cell.font.color and cell.font.color.type == 'rgb' else None
-                    fill_color = cell.fill.fgColor.rgb if cell.fill.fgColor and cell.fill.fgColor.type == 'rgb' else None
+        # Inicializamos una bandera para saber hasta qué fila debemos tomar la información
+        fila_limite = None
 
+        for row in sheet.iter_rows():
+            # Verificar si hay un valor en la columna A de esta fila
+            if row[0].value is not None:
+                fila_limite = row[0].row  # Guardar la fila donde se encuentra el valor en la columna A
+                print("fila_limite: ", fila_limite)
+
+            # Si hemos encontrado un valor en la columna A, procesar hasta esa fila
+            if fila_limite is not None and row[0].row > fila_limite:
+                break  # Salir del bucle una vez que se supera la fila con el valor en la columna A
+
+            for cell in row:
+                # Omitir celdas fusionadas que no son las principales
+                if isinstance(cell, MergedCell):
+                    continue
+
+                # Obtener propiedades de estilo, incluso si la celda está vacía
+                font_color = cell.font.color.rgb if cell.font.color and cell.font.color.type == 'rgb' else None
+                fill_color = cell.fill.fgColor.rgb if cell.fill.fgColor and cell.fill.fgColor.type == 'rgb' else None
+                border_styles = {
+                    'left': cell.border.left.style,
+                    'right': cell.border.right.style,
+                    'top': cell.border.top.style,
+                    'bottom': cell.border.bottom.style
+                }
+
+                # Verificar si hay algún estilo modificado (bordes, color de fuente, color de fondo)
+                has_styles = any([
+                    font_color,  # Color de fuente
+                    fill_color,  # Color de relleno
+                    border_styles['left'],  # Bordes
+                    border_styles['right'],
+                    border_styles['top'],
+                    border_styles['bottom']
+                ])
+
+                # Considerar la celda solo si tiene un valor o estilos aplicados (ignorar si solo tiene cambios de tamaño)
+                if cell.value is not None or has_styles:
                     # Obtener la configuración de la página
                     page_setup = {
                         'orientation': sheet.page_setup.orientation,
@@ -63,12 +97,7 @@ def obtener_info_excel(ruta_excel):
                             'fgColor': fill_color,
                             'patternType': cell.fill.patternType
                         },
-                        'border': {
-                            'left': cell.border.left.style,
-                            'right': cell.border.right.style,
-                            'top': cell.border.top.style,
-                            'bottom': cell.border.bottom.style
-                        },
+                        'border': border_styles,
                         'alignment': {
                             'horizontal': cell.alignment.horizontal,
                             'vertical': cell.alignment.vertical,
@@ -90,7 +119,6 @@ def obtener_info_excel(ruta_excel):
         info_excel[sheet.title] = {'cells': sheet_info, 'merges': merge_info, 'page_setup': page_setup}
 
     return info_excel
-
 
 def es_numero(valor):
     # Verificar si el valor es un número que se pueda convertir a float
@@ -326,7 +354,7 @@ def aplicar_imagenes_a_hoja(sheet, posiciones_imagenes, template_sheet, start_ro
 
         # Ajustar el tamaño de la imagen al tamaño de la celda o celdas combinadas
         new_image = ajustar_imagen_a_celda(template_sheet, img_info, new_image, start_row)
-
+        print("ajustar imagen a celda exitosamente")
         # Obtener la posición de la celda
         cell_position = obtener_posicion_celda(img_info, start_row)
 
@@ -380,6 +408,7 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
             print("posiciones_imagenes: ", posiciones_imagenes[sheet_name])
             aplicar_imagenes_a_hoja(sheet, posiciones_imagenes[sheet_name], sheet_template, start_row)
         message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
+        print("aplicar imagenes de la hoja principal exitosamente")
 
         bar_code = []
 
@@ -415,7 +444,7 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
             sheet.page_margins.bottom = page_setup['margin_bottom']
             sheet.page_margins.left = page_setup['margin_left']
             sheet.page_margins.right = page_setup['margin_right']
-            sheet.print_area = page_setup['print_area']
+            sheet.print_area = ""
             if sheet.page_setup.fitToWidth is None:
                 sheet.page_setup.fitToWidth = 1  # Forzar ajuste a una página de ancho
             if sheet.page_setup.fitToHeight is None:
