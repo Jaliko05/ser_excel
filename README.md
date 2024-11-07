@@ -165,7 +165,7 @@ Si el programa se ejecuta correctamente encontraras los archivos generados en la
 Para crear el archivo ejecutable `.exe`, ejecuta el siguiente comando:
 
 ```bash
-  pyinstaller --onefile main.py
+pyinstaller --noconsole --onefile main.py
 ```
 
 En la carpeta ser_excel\ser_excel\dist, encontrarás un archivo llamado `main.exe`. Debes renombrarlo a `Ser_Excel.exe` para poder instalarlo.
