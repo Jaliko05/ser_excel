@@ -5,7 +5,8 @@ from openpyxl.drawing.image import Image
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import column_index_from_string
 import os
-import gc
+import re
+import math
 import copy
 from uuid import uuid4
 
@@ -82,6 +83,8 @@ def obtener_info_excel(ruta_excel):
                     column_width = column_widths.get(col_letter, None)
                     row_height = row_heights.get(row_number, None)
 
+                    text_rotation = cell.alignment.textRotation
+
                     cell_info = {
                         'value': cell.value,
                         'font': {
@@ -100,7 +103,8 @@ def obtener_info_excel(ruta_excel):
                         'alignment': {
                             'horizontal': cell.alignment.horizontal,
                             'vertical': cell.alignment.vertical,
-                            'wrap_text': cell.alignment.wrap_text
+                            'wrap_text': cell.alignment.wrap_text,
+                            'text_rotation': text_rotation
                         },
                         'number_format': cell.number_format,
                         'row': row_number,
@@ -143,19 +147,9 @@ def reemplazar_vars(sheet_info, data, ruta_imagenes='img_barcode'):
         # Reemplazar valores en las celdas
         for cell_info in sheet_info_copia['cells'].values():
             if isinstance(cell_info['value'], str):
-                # Verificar si el formato de la celda es numérico
-                cell_format = cell_info.get('number_format', '')
-
-                # Si el formato no es numérico, evitar la conversión a número
+                # Si el placeholder está en el valor de la celda
                 if var_placeholder in cell_info['value']:
-                    if es_numero(value) and not cell_format.startswith('@'):  # Si no es texto
-                        if value.isdigit():
-                            value = int(value)
-                        else:
-                            try:
-                                value = float(value.replace(',', '.'))
-                            except ValueError:
-                                pass
+                    # Reemplazar el valor en la celda
                     cell_info['value'] = cell_info['value'].replace(var_placeholder, str(value))
 
                 # Generar y reemplazar código de barras
@@ -173,6 +167,81 @@ from openpyxl.drawing.image import Image
 def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
     max_row = start_row
     nameImge = []	
+    
+
+    def convertir_valor_segun_formato(value, number_format):
+        if value is None:
+            return None  # Si el valor es None, no convertirlo
+
+        # Detectar si el formato es numérico o de moneda
+        is_numeric_format = re.match(r'^[0#,.]*[0#]$', number_format) or number_format.lower() == 'general'
+        is_currency_format = re.search(r'[\$€¥]', number_format)
+
+        # Si el formato es numérico o de moneda, procesar para quitar decimales y ceros a la izquierda
+        if is_numeric_format or is_currency_format:
+            try:
+                # Si el valor es una cadena, reemplaza la coma decimal y elimina los decimales
+                if isinstance(value, str):
+                    # Reemplazar la coma por punto decimal si existe
+                    value = value.replace(',', '.')
+                    value = float(value)  # Convertir a float para manipular decimales
+                    decimal_part, integer_part = math.modf(value)
+
+                    # Eliminar los decimales solo si son 0 y quitar ceros a la izquierda
+                    if decimal_part == 0:
+                        value = int(integer_part)
+
+                elif isinstance(value, float):
+                    # Para valores float, quitar decimales si no los tiene
+                    decimal_part, integer_part = math.modf(value)
+                    if decimal_part == 0:
+                        value = int(integer_part)
+
+                # Quitar ceros a la izquierda al convertir a entero
+                value = str(value).lstrip('0') or '0'
+
+            except ValueError:
+                return value  # Si no es un valor numérico, continúa sin modificarlo
+
+        # Ahora se realizan las validaciones según el tipo de formato
+
+        # Detectar cualquier formato que sea numérico
+        if is_numeric_format:
+            try:
+                value = float(value.replace(',', '')) if isinstance(value, str) else float(value)
+                if value.is_integer():
+                    return int(value)
+                return round(value, 2)  # Retornar con dos decimales si no es entero
+            except ValueError:
+                return value  # Si no se puede convertir, retorna el valor original
+
+        # Detectar cualquier formato que sea de moneda
+        elif is_currency_format:
+            try:
+                value = float(value.replace(',', '')) if isinstance(value, str) else float(value)
+                return "${:,.2f}".format(value)
+            except ValueError:
+                return value
+
+        # Detectar cualquier formato que sea de porcentaje
+        elif '%' in number_format:
+            try:
+                value = float(value.replace(',', '')) if isinstance(value, str) else float(value)
+                return "{:.2%}".format(value / 100)
+            except ValueError:
+                return value
+
+        # Detectar formatos de fecha (se basa en los patrones comunes de fechas en Excel)
+        elif re.search(r'(m|d|y|M|D|Y)', number_format):
+            try:
+                return value.strftime("%Y-%m-%d")  # Ajustar según el formato de fecha
+            except (ValueError, AttributeError):
+                return value
+
+        # Si no es un formato numérico, moneda o conocido, devolver el valor tal cual
+        return value
+
+
     for coord, cell_info in sheet_info['cells'].items():
         col_letter = ''.join(filter(str.isalpha, coord))
         row_number = int(''.join(filter(str.isdigit, coord)))
@@ -201,7 +270,11 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
                 sheet.add_image(img)
                 nameImge.append(cell_info['value'])
             else:
-                cell.value = cell_info['value']
+                # Convertir el valor según el formato de la celda
+                valor_convertido = convertir_valor_segun_formato(cell_info['value'], cell_info['number_format'])
+                cell.value = valor_convertido
+                
+                # Aplicar los estilos
                 cell.font = Font(
                     name=cell_info['font']['name'],
                     size=cell_info['font']['size'],
@@ -223,14 +296,15 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
                 cell.alignment = Alignment(
                     horizontal=cell_info['alignment']['horizontal'],
                     vertical=cell_info['alignment']['vertical'],
-                    wrap_text=cell_info['alignment']['wrap_text']
+                    wrap_text=cell_info['alignment']['wrap_text'],
+                    text_rotation=cell_info['alignment']['text_rotation']
                 )
                 cell.number_format = cell_info['number_format']
 
         if start_row + row_number - 1 > max_row:
             max_row = start_row + row_number - 1
-        
 
+    # Aplicar los rangos de celdas fusionadas
     for merge_range in sheet_info['merges']:
         min_col, min_row, max_col, max_row_fin = merge_range.bounds
 
