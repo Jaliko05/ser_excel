@@ -247,11 +247,26 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
         row_number = int(''.join(filter(str.isdigit, coord)))
         new_coord = f"{col_letter}{start_row + row_number - 1}"
 
+        # Verificar si la celda es parte de un rango fusionado
+        is_main_merged_cell = False
+        if any(new_coord in range_obj for range_obj in sheet.merged_cells.ranges):
+            if any(new_coord == range_obj.coord.split(":")[0] for range_obj in sheet.merged_cells.ranges):
+                is_main_merged_cell = True
+            else:
+                # Considerar la fila incluso si no es la celda principal
+                max_row = max(max_row, start_row + row_number - 1)
+                continue
+        else:
+            is_main_merged_cell = True
+
+        # Actualizar la fila máxima considerando todas las filas
+        max_row = max(max_row, start_row + row_number - 1)
+
         # Aplicar la altura de la fila
         if 'row_height' in cell_info and cell_info['row_height'] is not None:
             sheet.row_dimensions[start_row + row_number - 1].height = cell_info['row_height']
 
-        if col_letter != 'A':  # Evitar escribir en la columna A
+        if col_letter != 'A'and is_main_merged_cell:  # Evitar escribir en la columna A
             cell = sheet[new_coord]
 
             # Verificar si el valor es una URL de una imagen de código de barras
@@ -300,9 +315,6 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
                     text_rotation=cell_info['alignment']['text_rotation']
                 )
                 cell.number_format = cell_info['number_format']
-
-        if start_row + row_number - 1 > max_row:
-            max_row = start_row + row_number - 1
 
     # Aplicar los rangos de celdas fusionadas
     for merge_range in sheet_info['merges']:
@@ -483,9 +495,11 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
                     sheet_info = info_excel[sheet_name]
                     # Reemplazar las variables en la hoja
                     sheet_info_modificada = reemplazar_vars(sheet_info, values)
+                    print("sheet_info_modificada: ", sheet_name)
                     # Aplicar la información modificada a la hoja "PRINCIPAL"
                     sheet_template = wb[sheet_name]
                     max_row, nameImge = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row, sheet_template)
+                    print("aplica info: max_row: ", max_row)
                     bar_code = bar_code + nameImge
                     # Aplicar las imagenes a la hoja
                     if sheet_name in posiciones_imagenes and posiciones_imagenes[sheet_name]:
