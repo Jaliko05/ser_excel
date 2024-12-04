@@ -19,6 +19,7 @@ def obtener_info_excel(ruta_excel):
     info_excel = {}
 
     for sheet in workbook.worksheets:
+        print("obtener_info_hoja: ",sheet.title)
         sheet_info = {}
         # Obtener el ancho de las columnas y la altura de las filas
         column_widths = {col: sheet.column_dimensions[col].width for col in sheet.column_dimensions}
@@ -406,18 +407,22 @@ def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
     merged_range = obtener_area_celda_combinada(sheet, col_letter, row)
 
     if merged_range:
-        # Si la celda está combinada, calcular el tamaño total de la celda combinada
         min_col, min_row, max_col, max_row = merged_range.bounds
         col_width = sum(sheet.column_dimensions[get_column_letter(c)].width or 8.43 for c in range(min_col, max_col + 1))
-        row_height = sum(sheet.row_dimensions[r].height or 15 for r in range(min_row, max_row + 1))
+        print(f"Filas combinadas: {list(range(min_row, max_row + 1))}")
+        for r in range(min_row, max_row + 1):
+            print(f"Altura de fila {r}: {sheet.row_dimensions[r].height}")
+        row_height = sum(sheet.row_dimensions[r].height if sheet.row_dimensions[r].height else 15 for r in range(min_row, max_row + 1))
     else:
-        # Si la celda no está combinada, obtener el tamaño normal de la celda
         col_width = sheet.column_dimensions[col_letter].width or 8.43
         row_height = sheet.row_dimensions[row].height or 15
 
+
+
     # Conversiones aproximadas:
     pixel_width = col_width * 7
-    pixel_height = row_height * 0.75
+    pixel_height = row_height * 1.2  # Ajusta este valor si es necesario
+
 
     # Ajustar el tamaño de la imagen al tamaño de la celda o celdas combinadas
     new_image.width = pixel_width
@@ -456,10 +461,12 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         # Obtener la fila de inicio
         start_row = find_next_start_row(principal_sheet)
         message = message + "Obtener fila inicial exitosamente: "  + "\n"
+        print("inicio fila: ", start_row)
 
 
         # Obtener la información de cada hoja de la plantilla
         info_excel = obtener_info_excel(ruta_template_excel)
+        print("obtener_info_excel: ")
         message = message + "Obtener informacion de plantilla exitosamente: "  + "\n"
 
         #Obtener las posiciones de las imagenes
@@ -476,7 +483,8 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         message = message + "Copiar ancho de columnas de la hoja 001 al reporte exitosamente: "  + "\n"
 
         #aplicar informacion de la hoja principal
-        a = aplicar_info_a_hoja(principal_sheet, info_excel[principal_sheet.title], 1, principal_sheet.title)   
+        start_row, imag = aplicar_info_a_hoja(sheet, info_excel[principal_sheet.title], 1, principal_sheet.title)   
+        print("inicio fila: ", start_row)
         message = message + "Aplicar informacion de la hoja principal exitosamente: "  + "\n"
 
         #aplicar imagenes de la hoja principal a la nueva hoja principal
@@ -495,11 +503,9 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
                     sheet_info = info_excel[sheet_name]
                     # Reemplazar las variables en la hoja
                     sheet_info_modificada = reemplazar_vars(sheet_info, values)
-                    print("sheet_info_modificada: ", sheet_name)
                     # Aplicar la información modificada a la hoja "PRINCIPAL"
                     sheet_template = wb[sheet_name]
                     max_row, nameImge = aplicar_info_a_hoja(sheet, sheet_info_modificada, start_row, sheet_template)
-                    print("aplica info: max_row: ", max_row)
                     bar_code = bar_code + nameImge
                     # Aplicar las imagenes a la hoja
                     if sheet_name in posiciones_imagenes and posiciones_imagenes[sheet_name]:

@@ -175,7 +175,7 @@
  [],
  False,
  False,
- 1732035815,
+ 1733348867,
  [('runw.exe',
    'C:\\Users\\javier.puentes\\ser_excel\\ser_excel\\venv\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\runw.exe',
    'EXECUTABLE')],
