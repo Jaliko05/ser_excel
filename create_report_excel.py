@@ -45,17 +45,20 @@ def obtener_info_excel(ruta_excel):
                 # Obtener propiedades de estilo, incluso si la celda está vacía
                 font_color = cell.font.color.rgb if cell.font.color and cell.font.color.type == 'rgb' else None
                 fill_color = cell.fill.fgColor.rgb if cell.fill.fgColor and cell.fill.fgColor.type == 'rgb' else None
+                border_color = cell.border.left.color.rgb if cell.border.left.color and cell.border.left.color.type == 'rgb' else None
                 border_styles = {
-                    'left': cell.border.left.style,
-                    'right': cell.border.right.style,
-                    'top': cell.border.top.style,
-                    'bottom': cell.border.bottom.style
+    'left': {'style': cell.border.left.style, 'color': cell.border.left.color.rgb if cell.border.left.color and hasattr(cell.border.left.color, 'rgb') else None},
+    'right': {'style': cell.border.right.style, 'color': cell.border.right.color.rgb if cell.border.right.color and hasattr(cell.border.right.color, 'rgb') else None},
+    'top': {'style': cell.border.top.style, 'color': cell.border.top.color.rgb if cell.border.top.color and hasattr(cell.border.top.color, 'rgb') else None},
+    'bottom': {'style': cell.border.bottom.style, 'color': cell.border.bottom.color.rgb if cell.border.bottom.color and hasattr(cell.border.bottom.color, 'rgb') else None}
                 }
+
 
                 # Verificar si hay algún estilo modificado (bordes, color de fuente, color de fondo)
                 has_styles = any([
                     font_color,  # Color de fuente
                     fill_color,  # Color de relleno
+                    border_color,
                     border_styles['left'],  # Bordes
                     border_styles['right'],
                     border_styles['top'],
@@ -181,46 +184,66 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
         # Si el formato es numérico o de moneda, procesar para quitar decimales y ceros a la izquierda
         if is_numeric_format or is_currency_format:
             try:
-                # Si el valor es una cadena, reemplaza la coma decimal y elimina los decimales
-                if isinstance(value, str):
-                    # Reemplazar la coma por punto decimal si existe
-                    value = value.replace(',', '.')
-                    value = float(value)  # Convertir a float para manipular decimales
-                    decimal_part, integer_part = math.modf(value)
-
-                    # Eliminar los decimales solo si son 0 y quitar ceros a la izquierda
-                    if decimal_part == 0:
-                        value = int(integer_part)
-
-                elif isinstance(value, float):
-                    # Para valores float, quitar decimales si no los tiene
-                    decimal_part, integer_part = math.modf(value)
-                    if decimal_part == 0:
-                        value = int(integer_part)
-
                 # Quitar ceros a la izquierda al convertir a entero
                 value = str(value).lstrip('0') or '0'
 
             except ValueError:
                 return value  # Si no es un valor numérico, continúa sin modificarlo
 
-        # Ahora se realizan las validaciones según el tipo de formato
 
         # Detectar cualquier formato que sea numérico
         if is_numeric_format:
             try:
-                value = float(value.replace(',', '')) if isinstance(value, str) else float(value)
-                if value.is_integer():
-                    return int(value)
-                return round(value, 2)  # Retornar con dos decimales si no es entero
+                if isinstance(value, str):
+                    # Caso 1: Si el valor tiene ambos ',' y '.' (ej: "59,400.00" → "59400.00")
+                    if ',' in value and '.' in value:
+                        if value.index(',') < value.index('.'):  # Caso "59,400.00"
+                            value = value.replace(',', '')  # Eliminar comas, deja el punto decimal
+                            value = float(value) 
+                        else:  # Caso "59.400,00"
+                            value = value.replace('.', '').replace(',', '.')  # Corrige separadores
+                            value = float(value) 
+                        
+                    # Caso 2: Si el valor solo tiene comas, convertir a formato correcto (ej: "59,400" → "59.400")
+                    elif ',' in value:
+                        value = value.replace(',', '')
+                        value = int(value)
+
+                    # Caso 3: Si el valor solo tiene puntos y no es decimal (ej: "59.400" → "59.400")
+                    elif '.' in value:
+                        value = value.replace('.', '')
+                        value = int(value)
+                    else:
+                        value = int(value)
+
             except ValueError:
-                return value  # Si no se puede convertir, retorna el valor original
+                return value
 
         # Detectar cualquier formato que sea de moneda
         elif is_currency_format:
             try:
-                value = float(value.replace(',', '')) if isinstance(value, str) else float(value)
-                return "${:,.2f}".format(value)
+                if isinstance(value, str):
+                    # Caso 1: Si el valor tiene ambos ',' y '.' (ej: "59,400.00" → "59400.00")
+                    if ',' in value and '.' in value:
+                        if value.index(',') < value.index('.'):  # Caso "59,400.00"
+                            value = value.replace(',', '')  # Eliminar comas, deja el punto decimal
+                            value = float(value) 
+                        else:  # Caso "59.400,00"
+                            value = value.replace('.', '').replace(',', '.')  # Corrige separadores
+                            value = float(value) 
+                        
+                    # Caso 2: Si el valor solo tiene comas, convertir a formato correcto (ej: "59,400" → "59.400")
+                    elif ',' in value:
+                        value = value.replace(',', '')
+                        value = int(value)
+
+                    # Caso 3: Si el valor solo tiene puntos y no es decimal (ej: "59.400" → "59.400")
+                    elif '.' in value:
+                        value = value.replace('.', '')
+                        value = int(value)
+                    else:
+                        value = int(value)
+
             except ValueError:
                 return value
 
@@ -304,11 +327,23 @@ def aplicar_info_a_hoja(sheet, sheet_info, start_row, sheet_template):
                 )
 
                 cell.border = Border(
-                    left=Side(style=cell_info['border']['left']),
-                    right=Side(style=cell_info['border']['right']),
-                    top=Side(style=cell_info['border']['top']),
-                    bottom=Side(style=cell_info['border']['bottom'])
-                )
+    left=Side(
+        style=cell_info['border']['left']['style'],
+        color=Color(rgb=cell_info['border']['left']['color']) if isinstance(cell_info['border']['left']['color'], str) else None
+    ),
+    right=Side(
+        style=cell_info['border']['right']['style'],
+        color=Color(rgb=cell_info['border']['right']['color']) if isinstance(cell_info['border']['right']['color'], str) else None
+    ),
+    top=Side(
+        style=cell_info['border']['top']['style'],
+        color=Color(rgb=cell_info['border']['top']['color']) if isinstance(cell_info['border']['top']['color'], str) else None
+    ),
+    bottom=Side(
+        style=cell_info['border']['bottom']['style'],
+        color=Color(rgb=cell_info['border']['bottom']['color']) if isinstance(cell_info['border']['bottom']['color'], str) else None
+    )
+)
                 cell.alignment = Alignment(
                     horizontal=cell_info['alignment']['horizontal'],
                     vertical=cell_info['alignment']['vertical'],
@@ -383,6 +418,7 @@ def copy_column_widths(origen, destino):
         if origen_ancho - 0.5 > 0:
             origen_ancho = origen_ancho - 0
         # Aplicar el ancho a la columna en la hoja de destino
+        print("ancho", origen_ancho)
         destino.column_dimensions[col_letter].width = origen_ancho
 
 
@@ -491,8 +527,8 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
         if posiciones_imagenes[principal_sheet.title]:
             sheet_template = wb[principal_sheet.title]
             aplicar_imagenes_a_hoja(sheet, posiciones_imagenes[sheet_name], sheet_template, start_row)
-        message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
-        print("aplicar imagenes de la hoja principal exitosamente")
+            message = message + "Aplicar imagenes de la hoja principal exitosamente: "  + "\n"
+            print("aplicar imagenes de la hoja principal exitosamente")
 
         bar_code = []
 
