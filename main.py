@@ -43,8 +43,8 @@ def main():
 
 
     #descomentar hata la linea 50 para ejecutar en local con python main.py,
-    number_session = "0099997"
-    name_report_txt = '12810'
+    number_session = "0099977"
+    name_report_txt = '000043210'
     utilita = 'P'
     rout_environment = "C:\\Users\\javier.puentes\\ser_excel"
     rout_aplication =  "C:\\Users\\javier.puentes\\ser_excel\\ser_excel"

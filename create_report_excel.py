@@ -1,3 +1,4 @@
+import io
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
 import win32com.client as win32
@@ -371,38 +372,41 @@ def find_next_start_row(sheet):
                 return cell.row + 1
     return 1
 
-
+import tempfile
 def get_image_position_openpyxl(rout_template_excel):
-    wb = load_workbook(rout_template_excel)
-    posiciones_imagenes = {}
-
-    for sheet_name in wb.sheetnames:
-        sheet = wb[sheet_name]
-        posiciones_imagenes[sheet_name] = []
-
-        for image in sheet._images:
-            # Verificar si el anclaje tiene formato de celda
-            if hasattr(image.anchor, '_from'):
-                anchor = image.anchor._from
-                # Convertir la columna solo si es un string
-                col = column_index_from_string(anchor.col) if isinstance(anchor.col, str) else anchor.col
-                col += 1
-                row = anchor.row
-
-                # Obtener el tamaño de la imagen
-                img_width = image.width
-                img_height = image.height
-
+    try:
+        wb = load_workbook(rout_template_excel)
+        posiciones_imagenes = {}
+        temp_dir = tempfile.mkdtemp()
+        
+        for sheet_name in wb.sheetnames:
+            sheet = wb[sheet_name]
+            posiciones_imagenes[sheet_name] = []
+            
+            for idx, image in enumerate(sheet._images):
+                temp_image_path = os.path.join(temp_dir, f"temp_image_{sheet_name}_{idx}.png")
+                
+                with open(temp_image_path, 'wb') as img_file:
+                    img_file.write(image._data())
+                
+                # Corregir el manejo de la columna
+                original_col = image.anchor._from.col
+                if isinstance(original_col, str):
+                    col = column_index_from_string(original_col)
+                else:
+                    col = original_col
+                
                 posiciones_imagenes[sheet_name].append({
-                    "name": image.ref,
-                    "col": col,
-                    "row": row,
-                    "width": img_width, 
-                    "height": img_height
+                    "temp_path": temp_image_path,
+                    "col": col + 1,  # Ajuste final de índice
+                    "row": image.anchor._from.row + 1,
+                    "width": image.width,
+                    "height": image.height
                 })
-
-    return posiciones_imagenes
-
+        print("posiciones_imagenes: ", posiciones_imagenes)
+        return posiciones_imagenes
+    finally:
+        wb.close()
 
 from openpyxl.utils import get_column_letter
 
@@ -423,9 +427,13 @@ def copy_column_widths(origen, destino):
 
 
 def obtener_posicion_celda(img_info, start_row):
-    col_letter = get_column_letter(img_info['col'])
-    cell_position = f"{col_letter}{img_info['row'] + start_row}"
-    return cell_position
+    # Convertir número de columna a letra si es necesario
+    if isinstance(img_info['col'], int):
+        col_letter = get_column_letter(img_info['col'])
+    else:
+        col_letter = str(img_info['col'])
+    
+    return f"{col_letter}{img_info['row'] + start_row}"
 
 def obtener_area_celda_combinada(sheet, col_letter, row):
     for merged_cells in sheet.merged_cells.ranges:
@@ -438,7 +446,7 @@ def obtener_area_celda_combinada(sheet, col_letter, row):
 
 def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
     col_letter = get_column_letter(img_info['col'])
-    row = img_info['row'] + 1
+    row = img_info['row']
     # Verificar si la celda está combinada
     merged_range = obtener_area_celda_combinada(sheet, col_letter, row)
 
@@ -467,17 +475,22 @@ def ajustar_imagen_a_celda(sheet, img_info, new_image, start_row):
     return new_image
 
 def aplicar_imagenes_a_hoja(sheet, posiciones_imagenes, template_sheet, start_row):
-    for img_info, image in zip(posiciones_imagenes, template_sheet._images):
-        new_image = Image(image.ref)
-
-        # Ajustar el tamaño de la imagen al tamaño de la celda o celdas combinadas
-        new_image = ajustar_imagen_a_celda(template_sheet, img_info, new_image, start_row)
-        print("ajustar imagen a celda exitosamente")
-        # Obtener la posición de la celda
-        cell_position = obtener_posicion_celda(img_info, start_row)
-
-        # Insertar la imagen en la nueva hoja
-        sheet.add_image(new_image, cell_position)
+    for img_info in posiciones_imagenes:
+        try:
+            # Cargar desde archivo temporal
+            img = Image(img_info['temp_path'])
+            
+            # Ajustar tamaño
+            img = ajustar_imagen_a_celda(template_sheet, img_info, img, start_row)
+            
+            # Posicionar
+            cell_position = obtener_posicion_celda(img_info, start_row - 1)
+            print(f"Insertando imagen en {cell_position} ({img_info['temp_path']})")
+            sheet.add_image(img, cell_position)
+            
+        except Exception as e:
+            print(f"Error insertando imagen: {str(e)}")
+            continue
 
 def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, rout_log):
     message = "Inicio de la copia del archivo: " + ruta_template_excel + "\n"
@@ -545,8 +558,12 @@ def create_report_excel(datos_report, ruta_template_excel, ruta_report_excel, ro
                     bar_code = bar_code + nameImge
                     # Aplicar las imagenes a la hoja
                     if sheet_name in posiciones_imagenes and posiciones_imagenes[sheet_name]:
-                        sheet_template = wb[sheet_name]
-                        aplicar_imagenes_a_hoja(sheet, posiciones_imagenes[sheet_name], sheet_template, start_row)
+                        try:
+                            sheet_template = wb[sheet_name]
+                            aplicar_imagenes_a_hoja(sheet, posiciones_imagenes[sheet_name], sheet_template, start_row)
+                        except Exception as e:
+                            print(f"Error al procesar imágenes para {sheet_name}: {str(e)}")
+                            continue
 
 
                     start_row = max_row
